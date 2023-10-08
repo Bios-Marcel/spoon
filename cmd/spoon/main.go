@@ -22,8 +22,11 @@ var (
 	}
 
 	searchCmd = cobra.Command{
-		Use:  "search",
-		Args: cobra.ExactArgs(1),
+		Use:     "search",
+		Short:   "Find a scoop package by search query.",
+		Aliases: []string{"find", "s"},
+		Example: "search git",
+		Args:    cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			search := args[0]
 			home, err := os.UserHomeDir()
@@ -258,15 +261,14 @@ const (
 
 func init() {
 	rootCmd.AddCommand(&searchCmd)
-	outFormat = rootCmd.PersistentFlags().String("out-format", "plain", "TODO")
+	outFormat = rootCmd.PersistentFlags().String("out-format", "plain", "Specifies the output format to use for any data printed")
 
-	searchCmd.Flags().IntP("workers", "w", runtime.NumCPU(), "TODO")
-	searchCmd.Flags().BoolP("case-insensitive", "i", true, "TODO")
+	searchCmd.Flags().IntP("workers", "w", runtime.NumCPU(), "Sets the maximum amount of workers to do background tasks with")
+	searchCmd.Flags().BoolP("case-insensitive", "i", true, "Defines whether any text matching is case insensitive")
 
 	// FIXME Add flag completion: searchCmd.RegisterFlagCompletionFunc
-	searchCmd.Flags().StringArrayP("fields", "f", []string{SearchFieldName, SearchFieldBin, SearchFieldDescription}, "TODO")
-	searchCmd.Flags().StringArrayP("not-fields", "", nil, "TODO")
-
+	searchCmd.Flags().StringArrayP("fields", "f", []string{SearchFieldName, SearchFieldBin, SearchFieldDescription}, "Specifies the fields which are searched in. Available: bin, name, description")
+	searchCmd.Flags().StringArrayP("not-fields", "", nil, "Opposite of --fields")
 	searchCmd.MarkFlagsMutuallyExclusive("fields", "not-fields")
 }
 
