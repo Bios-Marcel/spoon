@@ -21,7 +21,6 @@ tools such as `jq` or direct use in powershell via Powershells builtin
 
 WIP:
 
-* Make the search more configurable, allowing you to specify where to search and how strict to be.
 * Proper output, error handling and process exit codes
 
 ## Cleanup
