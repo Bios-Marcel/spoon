@@ -108,6 +108,8 @@ func easyjson42239ddeDecodeGithubComBiosMarcelSpoonInternalJson1(in *jlexer.Lexe
 			out.Name = string(in.String())
 		case "bucket":
 			out.Bucket = string(in.String())
+		case "version":
+			out.Version = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -136,6 +138,11 @@ func easyjson42239ddeEncodeGithubComBiosMarcelSpoonInternalJson1(out *jwriter.Wr
 		const prefix string = ",\"bucket\":"
 		out.RawString(prefix)
 		out.String(string(in.Bucket))
+	}
+	{
+		const prefix string = ",\"version\":"
+		out.RawString(prefix)
+		out.String(string(in.Version))
 	}
 	out.RawByte('}')
 }
@@ -192,6 +199,8 @@ func easyjson42239ddeDecodeGithubComBiosMarcelSpoonInternalJson2(in *jlexer.Lexe
 			} else {
 				out.Bin = in.Interface()
 			}
+		case "version":
+			out.Version = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -221,6 +230,11 @@ func easyjson42239ddeEncodeGithubComBiosMarcelSpoonInternalJson2(out *jwriter.Wr
 		} else {
 			out.Raw(json.Marshal(in.Bin))
 		}
+	}
+	{
+		const prefix string = ",\"version\":"
+		out.RawString(prefix)
+		out.String(string(in.Version))
 	}
 	out.RawByte('}')
 }

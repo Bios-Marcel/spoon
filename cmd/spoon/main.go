@@ -79,6 +79,15 @@ var (
 			var wg sync.WaitGroup
 
 			syncQueue := make(chan json.Match, searchWorkers)
+			match := func(job job, app json.App) {
+				syncQueue <- json.Match{
+					Description: app.Description,
+					Version:     app.Version,
+					Bucket:      job.bucket,
+					Name:        job.name,
+				}
+			}
+
 			for i := 0; i < searchWorkers; i++ {
 				go func() {
 					for {
@@ -107,12 +116,7 @@ var (
 
 							if (searchName && equals(job.name, search, caseInsensitive)) ||
 								(searchDescription && contains(app.Description, search, caseInsensitive)) {
-								syncQueue <- json.Match{
-									Description: app.Description,
-									Bucket:      job.bucket,
-									Name:        job.name,
-								}
-
+								match(job, app)
 								return
 							}
 
@@ -120,23 +124,13 @@ var (
 								switch castBin := app.Bin.(type) {
 								case string:
 									if contains(filepath.Base(castBin), search, caseInsensitive) {
-										syncQueue <- json.Match{
-											Description: app.Description,
-											Bucket:      job.bucket,
-											Name:        job.name,
-										}
-
+										match(job, app)
 										return
 									}
 								case []string:
 									for _, bin := range castBin {
 										if contains(filepath.Base(bin), search, caseInsensitive) {
-											syncQueue <- json.Match{
-												Description: app.Description,
-												Bucket:      job.bucket,
-												Name:        job.name,
-											}
-
+											match(job, app)
 											return
 										}
 									}
@@ -199,14 +193,14 @@ var (
 					return a.Name < b.Name
 				})
 
-				tbl := table.New("ID", "Description", "Bucket")
+				tbl := table.New("Name", "Version", "Bucket", "Description")
 
 				for _, match := range matches {
 					desc := match.Description
 					if len(desc) > 50 {
-						desc = desc[:50]
+						desc = desc[:47] + "..."
 					}
-					tbl.AddRow(match.Name, desc, match.Bucket)
+					tbl.AddRow(match.Name, match.Version, match.Bucket, desc)
 				}
 
 				tbl.Print()
