@@ -8,6 +8,24 @@ WIP:
 * Autocomplete (spoon and scoop)
 * Delegation to scoop for install, uninstall, update, status, ...
 
+
+## Setup
+
+1. [Install scoop](https://scoop.sh/)
+2. Install spoon
+   ```ps
+   go install github.com/Bios-Marcel/spoon@latest
+   ```
+3. Option A: Enable Completion
+   1. Generate completion `spoon completion powershell > spoon_completion.ps1`
+   2. Move file into place of your liking
+   3. Source the file in your powershell profile
+3. Option B: EnableCompletion; Since way 3 requires to update the completion
+   profile after spoon updates, you can alternatively add this to your profile:
+  ```ps
+  spoon completion powershell | Out-String | Invoke-Expression
+  ```
+
 ## Search
 
 The search here does nothing fancy, it simply does an offline search of
