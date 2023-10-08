@@ -262,8 +262,12 @@ func init() {
 
 	searchCmd.Flags().IntP("workers", "w", runtime.NumCPU(), "TODO")
 	searchCmd.Flags().BoolP("case-insensitive", "i", true, "TODO")
+
+	// FIXME Add flag completion: searchCmd.RegisterFlagCompletionFunc
 	searchCmd.Flags().StringArrayP("fields", "f", []string{SearchFieldName, SearchFieldBin, SearchFieldDescription}, "TODO")
 	searchCmd.Flags().StringArrayP("not-fields", "", nil, "TODO")
+
+	searchCmd.MarkFlagsMutuallyExclusive("fields", "not-fields")
 }
 
 func main() {
