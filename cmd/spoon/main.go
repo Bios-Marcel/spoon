@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -24,8 +25,7 @@ var (
 		Use:  "search",
 		Args: cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			// Case folding with any language?
-			search := strings.ToLower(args[0])
+			search := args[0]
 			home, err := os.UserHomeDir()
 			if err != nil {
 				fmt.Println(err)
@@ -37,15 +37,57 @@ var (
 				return
 			}
 
+			searchWorkers, err := cmd.Flags().GetInt("workers")
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+
+			caseInsensitive, err := cmd.Flags().GetBool("case-insensitive")
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+			if caseInsensitive {
+				// FIXME Case folding with any language?
+				search = strings.ToLower(search)
+			}
+
+			searchFields, err := cmd.Flags().GetStringArray("fields")
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+
+			if dontSearchFields, err := cmd.Flags().GetStringArray("not-fields"); err != nil {
+				fmt.Println(err)
+				return
+			} else {
+				slices.DeleteFunc(searchFields, func(s string) bool {
+					return slices.Contains(dontSearchFields, s)
+				})
+			}
+
+			searchName := slices.Contains(searchFields, SearchFieldName)
+			searchBin := slices.Contains(searchFields, SearchFieldBin)
+			searchDescription := slices.Contains(searchFields, SearchFieldDescription)
+
 			queue := make(chan job)
 			var wg sync.WaitGroup
 
-			syncQueue := make(chan json.Match, *searchWorkers)
-			for i := 0; i < *searchWorkers; i++ {
+			syncQueue := make(chan json.Match, searchWorkers)
+			for i := 0; i < searchWorkers; i++ {
 				go func() {
 					for {
 						job := <-queue
 						func() {
+							// Prevent deadlocks
+							defer func() {
+								if err := recover(); err != nil {
+									wg.Done()
+								}
+							}()
+
 							// We intentionally keep handles closed, as we
 							// close them anyway once the process dies.
 							file, err := os.Open(job.path)
@@ -60,38 +102,40 @@ var (
 								os.Exit(1)
 							}
 
-							if strings.EqualFold(job.base, search) ||
-								strings.Contains(strings.ToLower(app.Description), search) {
+							if (searchName && equals(job.name, search, caseInsensitive)) ||
+								(searchDescription && contains(app.Description, search, caseInsensitive)) {
 								syncQueue <- json.Match{
 									Description: app.Description,
 									Bucket:      job.bucket,
-									Name:        job.base,
+									Name:        job.name,
 								}
 
 								return
 							}
 
-							switch castBin := app.Bin.(type) {
-							case string:
-								if strings.Contains(strings.ToLower(filepath.Base(castBin)), search) {
-									syncQueue <- json.Match{
-										Description: app.Description,
-										Bucket:      job.bucket,
-										Name:        job.base,
-									}
-
-									return
-								}
-							case []string:
-								for _, bin := range castBin {
-									if strings.Contains(strings.ToLower(filepath.Base(bin)), search) {
+							if searchBin {
+								switch castBin := app.Bin.(type) {
+								case string:
+									if contains(filepath.Base(castBin), search, caseInsensitive) {
 										syncQueue <- json.Match{
 											Description: app.Description,
 											Bucket:      job.bucket,
-											Name:        job.base,
+											Name:        job.name,
 										}
 
 										return
+									}
+								case []string:
+									for _, bin := range castBin {
+										if contains(filepath.Base(bin), search, caseInsensitive) {
+											syncQueue <- json.Match{
+												Description: app.Description,
+												Bucket:      job.bucket,
+												Name:        job.name,
+											}
+
+											return
+										}
 									}
 								}
 							}
@@ -119,12 +163,12 @@ var (
 				wg.Add(len(entries))
 				go func(dir string) {
 					for _, entry := range entries {
-						base := entry.Name()
-						base = base[:len(base)-5]
+						name := entry.Name()
 						queue <- job{
-							path:   filepath.Join(dir, entry.Name()),
+							path:   filepath.Join(dir, name),
 							bucket: bucket,
-							base:   base,
+							// Cut off .json
+							name: name[:len(name)-5],
 						}
 					}
 				}(dir)
@@ -168,21 +212,58 @@ var (
 	}
 )
 
+// equals checks for string equality, optionally ignoring casing. The value `b`
+// is expected to be lowered already, if `ci` has been set.
+func equals(a, b string, ci bool) bool {
+	if ci {
+		return strings.EqualFold(a, b)
+	}
+
+	return a == b
+}
+
+// equals checks whether `whole` contains substring `find`, optionally ignoring
+// casing. The value `find` is expected to be lowered already, if `ci` has been
+// set.
+func contains(whole, find string, ci bool) bool {
+	if ci {
+		// FIXME Depending on casing rules, this might not hold true.
+		if len(find) > len(whole) {
+			return false
+		}
+
+		return strings.Contains(strings.ToLower(whole), find)
+	}
+
+	return strings.Contains(whole, find)
+}
+
 type job struct {
 	bucket string
 	path   string
-	base   string
+	name   string
 }
 
 var (
-	searchWorkers *int
-	outFormat     *string
+	outFormat *string
+)
+
+type SearchField string
+
+const (
+	SearchFieldName        = "name"
+	SearchFieldBin         = "bin"
+	SearchFieldDescription = "description"
 )
 
 func init() {
 	rootCmd.AddCommand(&searchCmd)
-	searchWorkers = searchCmd.Flags().Int("workers", runtime.NumCPU(), "TODO")
-	outFormat = rootCmd.Flags().String("out-format", "plain", "TODO")
+	outFormat = rootCmd.PersistentFlags().String("out-format", "plain", "TODO")
+
+	searchCmd.Flags().IntP("workers", "w", runtime.NumCPU(), "TODO")
+	searchCmd.Flags().BoolP("case-insensitive", "i", true, "TODO")
+	searchCmd.Flags().StringArrayP("fields", "f", []string{SearchFieldName, SearchFieldBin, SearchFieldDescription}, "TODO")
+	searchCmd.Flags().StringArrayP("not-fields", "", nil, "TODO")
 }
 
 func main() {
