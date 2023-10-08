@@ -43,4 +43,32 @@ WIP:
 
 ## Cleanup
 
+WIP:
+
+* Cleanup with retention count
+  > Scoop allows you to cleanup a single app or all apps, but it doesn't allow
+  > you to specify a retention count. This is a problem, because you might want
+  > to keep the last 3 versions of an app. This is especially useful for
+  > executing some kind of cleanup task.
+  >
+  > So you'd execute:
+  > ```ps
+  > spoon cleanup --retention 3 vscode
+  > spoon cleanup --retention 3 *
+  > ```
+  >
+  > While the default would be to keep the last 2 versions, as itd always wise
+  > to keep the last version and the one before that. You may aswell force it
+  > to 1 though.
+  * No plan to support global apps for now.
+
+## Install / Update
+
 WIP
+
+Scoop wastes time by not parallelizing the installation of apps with
+the download of installation files.
+
+Since scoop probably does a smart thing or two when installing, one way to do
+this in a way to not replicate too much of scoops logic, would be to populate
+the cache and then trigger `scoop install`.
