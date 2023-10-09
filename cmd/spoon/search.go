@@ -47,13 +47,13 @@ func searchCmd() *cobra.Command {
 				search = strings.ToLower(search)
 			}
 
-			searchFields, err := cmd.Flags().GetStringArray("fields")
+			searchFields, err := cmd.Flags().GetStringSlice("fields")
 			if err != nil {
 				fmt.Println(err)
 				return
 			}
 
-			if dontSearchFields, err := cmd.Flags().GetStringArray("not-fields"); err != nil {
+			if dontSearchFields, err := cmd.Flags().GetStringSlice("not-fields"); err != nil {
 				fmt.Println(err)
 				return
 			} else {
@@ -197,8 +197,8 @@ func searchCmd() *cobra.Command {
 	cmd.Flags().BoolP("case-insensitive", "i", true, "Defines whether any text matching is case insensitive")
 
 	// FIXME Add flag completion: cmd.RegisterFlagCompletionFunc
-	cmd.Flags().StringArrayP("fields", "f", []string{SearchFieldName, SearchFieldBin, SearchFieldDescription}, "Specifies the fields which are searched in. Available: bin, name, description")
-	cmd.Flags().StringArrayP("not-fields", "", nil, "Opposite of --fields")
+	cmd.Flags().StringSliceP("fields", "f", []string{SearchFieldName, SearchFieldBin, SearchFieldDescription}, "Specifies the fields which are searched in. Available: bin, name, description")
+	cmd.Flags().StringSliceP("not-fields", "", nil, "Opposite of --fields")
 	cmd.MarkFlagsMutuallyExclusive("fields", "not-fields")
 
 	return cmd
