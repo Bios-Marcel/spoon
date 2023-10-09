@@ -9,7 +9,8 @@ import (
 
 func uninstallCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "uninstall",
+		Use:   "uninstall",
+		Short: "Uninstall an installed pacakge (Data is kept by default)",
 		Aliases: []string{
 			"remove",
 			"delete",

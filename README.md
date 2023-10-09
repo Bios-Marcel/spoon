@@ -97,3 +97,9 @@ pray.
 Scoop also auto installs with auto generated manifests without asking the user.
 While there's a warning, the only way to interfere with the installation, is to
 be fast enough, with Ctrl-C.
+
+### Downloading
+
+Downloading should use up as much bandwidth as possible. If we download from
+URL 1 with 2Mbit/s, but are on a 100Mbit/s connection, we should download from
+more than one URL at once. This prevents unnecessary wait for a single download.

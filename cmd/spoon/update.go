@@ -9,7 +9,8 @@ import (
 
 func updateCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "update",
+		Use:   "update",
+		Short: "Update an installed package",
 		Aliases: []string{
 			"upgrade",
 			"up",

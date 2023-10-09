@@ -10,6 +10,7 @@ import (
 func installCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:               "install",
+		Short:             "Install a package",
 		Args:              cobra.MinimumNArgs(1),
 		ValidArgsFunction: autocompleteAvailable,
 		Run: func(cmd *cobra.Command, args []string) {
@@ -18,6 +19,15 @@ func installCmd() *cobra.Command {
 				fmt.Println(err)
 				os.Exit(1)
 			}
+
+			// Default path, where we can't do our simple optimisation of
+			// parallelising install and download, as we only have one package.
+			if len(args) == 1 {
+				os.Exit(execScoopCommand("install", append(flags, args...)...))
+				return
+			}
+
+			// FIXME Parallelise.
 			os.Exit(execScoopCommand("install", append(flags, args...)...))
 		},
 	}
