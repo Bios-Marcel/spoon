@@ -13,7 +13,6 @@ import (
 
 func execScoopCommand(command string, args ...string) int {
 	cmd := exec.Command("scoop", append([]string{command}, args...)...)
-	fmt.Println(cmd.String())
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
