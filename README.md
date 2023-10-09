@@ -14,7 +14,7 @@ WIP:
 1. [Install scoop](https://scoop.sh/)
 2. Install spoon
    ```ps
-   go install github.com/Bios-Marcel/spoon@latest
+   go install github.com/Bios-Marcel/spoon/cmd/spoon@latest
    ```
 3. Option A: Enable Completion
    1. Generate completion `spoon completion powershell > spoon_completion.ps1`
