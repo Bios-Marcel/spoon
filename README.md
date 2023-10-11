@@ -103,3 +103,8 @@ be fast enough, with Ctrl-C.
 Downloading should use up as much bandwidth as possible. If we download from
 URL 1 with 2Mbit/s, but are on a 100Mbit/s connection, we should download from
 more than one URL at once. This prevents unnecessary wait for a single download.
+
+## Uninstalling
+
+Prompt for closing running instances and add -y / --yes for automatically
+confirming such questions and go defensive routes where not destructive.
