@@ -19,6 +19,7 @@ func uninstallCmd() *cobra.Command {
 		Args:              cobra.MinimumNArgs(1),
 		ValidArgsFunction: autocompleteInstalled,
 		Run: func(cmd *cobra.Command, args []string) {
+
 			flags, err := getFlags(cmd, "global", "purge")
 			if err != nil {
 				fmt.Println(err)

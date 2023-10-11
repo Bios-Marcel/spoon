@@ -16,6 +16,20 @@ import (
 	"github.com/spf13/cobra"
 )
 
+type searchJob struct {
+	bucket string
+	path   string
+	name   string
+}
+
+type SearchField string
+
+const (
+	SearchFieldName        = "name"
+	SearchFieldBin         = "bin"
+	SearchFieldDescription = "description"
+)
+
 var allSearchFields = []string{SearchFieldName, SearchFieldBin, SearchFieldDescription}
 
 func searchCmd() *cobra.Command {
@@ -68,11 +82,11 @@ func searchCmd() *cobra.Command {
 			searchBin := slices.Contains(searchFields, SearchFieldBin)
 			searchDescription := slices.Contains(searchFields, SearchFieldDescription)
 
-			queue := make(chan job)
+			queue := make(chan searchJob)
 			var wg sync.WaitGroup
 
 			syncQueue := make(chan json.Match, searchWorkers)
-			match := func(job job, app json.App) {
+			match := func(job searchJob, app json.App) {
 				syncQueue <- json.Match{
 					Description: app.Description,
 					Version:     app.Version,
@@ -148,7 +162,7 @@ func searchCmd() *cobra.Command {
 				go func(dir string) {
 					for _, entry := range entries {
 						name := entry.Name()
-						queue <- job{
+						queue <- searchJob{
 							path:   filepath.Join(dir, name),
 							bucket: bucket,
 							// Cut off .json
