@@ -30,36 +30,36 @@ functionallity and some low level scoop functionallity.
 
 Rough overview of progress.
 
-| Command    | Wrapped (includes autocomplete) | Changes                                                     |
-| ---------- | ------------------------------- | ----------------------------------------------------------- |
-| search     | ✅                               | Performance improvements, JSON output, Search configuration |
-| install    | ✅                               |                                                             |
-| uninstall  | ✅                               | Terminate running processes                                 |
-| update     | ✅                               |                                                             |
-| alias      |                                 |                                                             |
-| bucket     |                                 |                                                             |
-| cache      |                                 |                                                             |
-| cat        |                                 |                                                             |
-| checkup    |                                 |                                                             |
-| cleanup    |                                 |                                                             |
-| config     |                                 |                                                             |
-| create     |                                 |                                                             |
-| depends    |                                 |                                                             |
-| download   |                                 |                                                             |
-| export     |                                 |                                                             |
-| help       |                                 |                                                             |
-| hold       |                                 |                                                             |
-| home       |                                 |                                                             |
-| import     |                                 |                                                             |
-| info       |                                 |                                                             |
-| list       |                                 |                                                             |
-| prefix     |                                 |                                                             |
-| reset      |                                 |                                                             |
-| shim       |                                 |                                                             |
-| status     |                                 |                                                             |
-| unhold     |                                 |                                                             |
-| virustotal |                                 |                                                             |
-| which      |                                 |                                                             |
+| Command    | Wrapped (includes autocomplete) | Changes                                                                  |
+| ---------- | ------------------------------- | ------------------------------------------------------------------------ |
+| search     | ✅                               | * Performance improvements<br/>* JSON output<br/> * Search configuration |
+| install    | ✅                               |                                                                          |
+| uninstall  | ✅                               | * Terminate running processes                                            |
+| update     | ✅                               |                                                                          |
+| alias      |                                 |                                                                          |
+| bucket     |                                 |                                                                          |
+| cache      |                                 |                                                                          |
+| cat        |                                 |                                                                          |
+| checkup    |                                 |                                                                          |
+| cleanup    |                                 |                                                                          |
+| config     |                                 |                                                                          |
+| create     |                                 |                                                                          |
+| depends    |                                 |                                                                          |
+| download   |                                 |                                                                          |
+| export     |                                 |                                                                          |
+| help       |                                 |                                                                          |
+| hold       |                                 |                                                                          |
+| home       |                                 |                                                                          |
+| import     |                                 |                                                                          |
+| info       |                                 |                                                                          |
+| list       |                                 |                                                                          |
+| prefix     |                                 |                                                                          |
+| reset      |                                 |                                                                          |
+| shim       |                                 |                                                                          |
+| status     |                                 |                                                                          |
+| unhold     |                                 |                                                                          |
+| virustotal |                                 |                                                                          |
+| which      |                                 |                                                                          |
 
 ## Search
 
