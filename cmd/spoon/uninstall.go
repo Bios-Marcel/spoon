@@ -31,6 +31,7 @@ func uninstallCmd() *cobra.Command {
 
 	cmd.Flags().BoolP("global", "g", false, "Uninstall a globally installed app")
 	cmd.Flags().BoolP("purge", "p", false, "Remove all persistent data")
+	cmd.Flags().BoolP("yes", "y", false, "Decides whether questions arise or are automatically answered")
 
 	return cmd
 }

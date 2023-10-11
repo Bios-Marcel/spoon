@@ -1,11 +1,8 @@
 package main
 
 import (
-	"fmt"
-	"io/fs"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -41,33 +38,6 @@ func getFlags(cmd *cobra.Command, flags ...string) ([]string, error) {
 	}
 
 	return outFlags, nil
-}
-
-func getBucketDirs() ([]string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("error getting home directory: %w", err)
-	}
-
-	return filepath.Glob(filepath.Join(home, "scoop/buckets/*/bucket"))
-}
-
-func getInstalledManifests() ([]string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("error getting home directory: %w", err)
-	}
-
-	return filepath.Glob(filepath.Join(home, "scoop/apps/*/current/manifest.json"))
-}
-
-func getDirEntries(dir string) ([]fs.FileInfo, error) {
-	dirHandle, err := os.Open(dir)
-	if err != nil {
-		return nil, err
-	}
-
-	return dirHandle.Readdir(-1)
 }
 
 // equals checks for string equality, optionally ignoring casing. The value `b`

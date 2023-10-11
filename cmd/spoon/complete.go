@@ -1,32 +1,29 @@
 package main
 
 import (
-	"fmt"
-	"path/filepath"
 	"strings"
 
+	"github.com/Bios-Marcel/spoon/pkg/scoop"
 	"github.com/spf13/cobra"
 )
 
 func autocompleteAvailable(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-	buckets, err := getBucketDirs()
+	buckets, err := scoop.GetLocalBuckets()
 	if err != nil {
-		fmt.Println(err)
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 
 	toComplete = strings.ToLower(toComplete)
 	var matches []string
+
 	for _, bucket := range buckets {
-		manifests, err := getDirEntries(bucket)
+		apps, err := bucket.AvailableApps()
 		if err != nil {
-			fmt.Println(err)
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		}
 
-		for _, manifest := range manifests {
-			name := strings.TrimSuffix(manifest.Name(), ".json")
-			if strings.HasPrefix(name, toComplete) {
+		for _, app := range apps {
+			if name := app.Name; strings.HasPrefix(name, toComplete) {
 				matches = append(matches, name)
 			}
 		}
@@ -43,15 +40,13 @@ func autocompleteInstalled(cmd *cobra.Command, args []string, toComplete string)
 	toComplete = strings.ToLower(toComplete)
 	var matches []string
 
-	manifests, err := getInstalledManifests()
+	apps, err := scoop.GetInstalledApps()
 	if err != nil {
-		fmt.Println(err)
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 
-	for _, manifest := range manifests {
-		name := filepath.Base(filepath.Dir(filepath.Dir(manifest)))
-		if strings.HasPrefix(name, toComplete) {
+	for _, app := range apps {
+		if name := app.Name; strings.HasPrefix(name, toComplete) {
 			matches = append(matches, name)
 		}
 	}

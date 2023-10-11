@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,16 +11,23 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/Bios-Marcel/spoon/internal/json"
-	"github.com/mailru/easyjson"
+	"github.com/Bios-Marcel/spoon/pkg/scoop"
 	"github.com/rodaine/table"
 	"github.com/spf13/cobra"
 )
 
+type matches []match
+
+type match struct {
+	Description string `json:"description"`
+	Name        string `json:"name"`
+	Bucket      string `json:"bucket"`
+	Version     string `json:"version"`
+}
+
 type searchJob struct {
 	bucket string
-	path   string
-	name   string
+	app    scoop.App
 }
 
 type SearchField string
@@ -41,11 +49,6 @@ func searchCmd() *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			search := args[0]
-			dirs, err := getBucketDirs()
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
 
 			searchWorkers, err := cmd.Flags().GetInt("workers")
 			if err != nil {
@@ -85,13 +88,13 @@ func searchCmd() *cobra.Command {
 			queue := make(chan searchJob)
 			var wg sync.WaitGroup
 
-			syncQueue := make(chan json.Match, searchWorkers)
-			match := func(job searchJob, app json.App) {
-				syncQueue <- json.Match{
+			syncQueue := make(chan match, searchWorkers)
+			match := func(job searchJob, app scoop.App) {
+				syncQueue <- match{
 					Description: app.Description,
 					Version:     app.Version,
 					Bucket:      job.bucket,
-					Name:        job.name,
+					Name:        app.Name,
 				}
 			}
 
@@ -107,21 +110,13 @@ func searchCmd() *cobra.Command {
 								}
 							}()
 
-							// We intentionally keep handles closed, as we
-							// close them anyway once the process dies.
-							file, err := os.Open(job.path)
-							if err != nil {
-								fmt.Println(err)
+							if err := job.app.LoadDetails(); err != nil {
+								fmt.Println("Error loading app metadata")
 								os.Exit(1)
 							}
 
-							var app json.App
-							if err := easyjson.UnmarshalFromReader(file, &app); err != nil {
-								fmt.Println(err)
-								os.Exit(1)
-							}
-
-							if (searchName && equals(job.name, search, caseInsensitive)) ||
+							app := job.app
+							if (searchName && equals(app.Name, search, caseInsensitive)) ||
 								(searchDescription && contains(app.Description, search, caseInsensitive)) {
 								match(job, app)
 								return
@@ -150,32 +145,33 @@ func searchCmd() *cobra.Command {
 				}()
 			}
 
-			for _, dir := range dirs {
-				bucket := filepath.Base(filepath.Dir(dir))
-				entries, err := getDirEntries(dir)
+			buckets, err := scoop.GetLocalBuckets()
+			if err != nil {
+				fmt.Println("error getting buckets:", err)
+				os.Exit(1)
+			}
+			for _, bucket := range buckets {
+				apps, err := bucket.AvailableApps()
 				if err != nil {
-					fmt.Println(err)
-					return
+					fmt.Println("error getting bucket manifests:", err)
+					os.Exit(1)
 				}
 
-				wg.Add(len(entries))
-				go func(dir string) {
-					for _, entry := range entries {
-						name := entry.Name()
+				wg.Add(len(apps))
+				go func(bucketName string) {
+					for _, app := range apps {
 						queue <- searchJob{
-							path:   filepath.Join(dir, name),
-							bucket: bucket,
-							// Cut off .json
-							name: name[:len(name)-5],
+							app:    app,
+							bucket: bucketName,
 						}
 					}
-				}(dir)
+				}(bucket.Name())
 			}
 
-			var matches json.Matches
+			var matchList matches
 			go func() {
 				for {
-					matches = append(matches, <-syncQueue)
+					matchList = append(matchList, <-syncQueue)
 					wg.Done()
 				}
 			}()
@@ -184,19 +180,19 @@ func searchCmd() *cobra.Command {
 
 			switch *outFormat {
 			case "json":
-				if _, err := easyjson.MarshalToWriter(matches, os.Stdout); err != nil {
+				if err := json.NewEncoder(os.Stdout).Encode(matchList); err != nil {
 					fmt.Println(err)
 					return
 				}
 			case "plain":
-				sort.Slice(matches, func(i, j int) bool {
-					a, b := matches[i], matches[j]
+				sort.Slice(matchList, func(i, j int) bool {
+					a, b := matchList[i], matchList[j]
 					return a.Name < b.Name
 				})
 
 				tbl := table.New("Name", "Version", "Bucket", "Description")
 
-				for _, match := range matches {
+				for _, match := range matchList {
 					desc := match.Description
 					if len(desc) > 50 {
 						desc = desc[:47] + "..."

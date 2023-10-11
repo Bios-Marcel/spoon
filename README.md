@@ -1,13 +1,13 @@
+
+
 The goal is to provide a fast and easy to use addition to scoop.
 
 The main inspiration is the fact that scoop doesn't do proper cleaning of
-cache and installed apps and the search is slow as hell.
+cache and installed apps and the search is slow as hell, there's also no
+autocompletion.
 
-WIP:
-
-* Autocomplete (spoon and scoop)
-* Delegation to scoop for install, uninstall, update, status, ...
-
+Additionally, this library can be used as a go package, providing spoon
+functionallity and some low level scoop functionallity.
 
 ## Setup
 
@@ -25,6 +25,41 @@ WIP:
   ```ps
   spoon completion powershell | Out-String | Invoke-Expression
   ```
+
+## CLI Progress
+
+Rough overview of progress.
+
+| Command    | Wrapped (includes autocomplete) | Changes                                                     |
+| ---------- | ------------------------------- | ----------------------------------------------------------- |
+| search     | ✅                               | Performance improvements, JSON output, Search configuration |
+| install    | ✅                               |                                                             |
+| uninstall  | ✅                               |                                                             |
+| update     | ✅                               |                                                             |
+| alias      |                                 |                                                             |
+| bucket     |                                 |                                                             |
+| cache      |                                 |                                                             |
+| cat        |                                 |                                                             |
+| checkup    |                                 |                                                             |
+| cleanup    |                                 |                                                             |
+| config     |                                 |                                                             |
+| create     |                                 |                                                             |
+| depends    |                                 |                                                             |
+| download   |                                 |                                                             |
+| export     |                                 |                                                             |
+| help       |                                 |                                                             |
+| hold       |                                 |                                                             |
+| home       |                                 |                                                             |
+| import     |                                 |                                                             |
+| info       |                                 |                                                             |
+| list       |                                 |                                                             |
+| prefix     |                                 |                                                             |
+| reset      |                                 |                                                             |
+| shim       |                                 |                                                             |
+| status     |                                 |                                                             |
+| unhold     |                                 |                                                             |
+| virustotal |                                 |                                                             |
+| which      |                                 |                                                             |
 
 ## Search
 
