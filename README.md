@@ -28,38 +28,47 @@ functionallity and some low level scoop functionallity.
 
 ## CLI Progress
 
-Rough overview of progress.
+Rough overview of progress on the command line interface. Commands are
+basically either fully fledged custom implementations or wrappers around scoop.
+The wrappers are there to provide autocomplete or add feature on top that run
+before / after the actual scoop commands.
 
-| Command    | Wrapped (includes autocomplete) | Changes                                                                  |
-| ---------- | ------------------------------- | ------------------------------------------------------------------------ |
-| search     | ✅                               | * Performance improvements<br/>* JSON output<br/> * Search configuration |
-| install    | ✅                               |                                                                          |
-| uninstall  | ✅                               | * Terminate running processes                                            |
-| update     | ✅                               |                                                                          |
-| alias      |                                 |                                                                          |
-| bucket     |                                 |                                                                          |
-| cache      |                                 |                                                                          |
-| cat        |                                 |                                                                          |
-| checkup    |                                 |                                                                          |
-| cleanup    |                                 |                                                                          |
-| config     |                                 |                                                                          |
-| create     |                                 |                                                                          |
-| depends    |                                 |                                                                          |
-| download   |                                 |                                                                          |
-| export     |                                 |                                                                          |
-| help       |                                 |                                                                          |
-| hold       |                                 |                                                                          |
-| home       |                                 |                                                                          |
-| import     |                                 |                                                                          |
-| info       |                                 |                                                                          |
-| list       |                                 |                                                                          |
-| prefix     |                                 |                                                                          |
-| reset      |                                 |                                                                          |
-| shim       |                                 |                                                                          |
-| status     |                                 |                                                                          |
-| unhold     |                                 |                                                                          |
-| virustotal |                                 |                                                                          |
-| which      |                                 |                                                                          |
+**For now, the global mode isn't support for custom commands, as I personally
+don't use that feature for now.**
+
+Some command will also probably never be fully completed. Such as alias, as I
+don't see the value personally. However, you are free to contribute.
+
+| Command    | Implementation Type | Autocomplete | Changes                                                                  |
+| ---------- | ------------------- | ------------ | ------------------------------------------------------------------------ |
+| search     | Custom              | ✅            | * Performance improvements<br/>* JSON output<br/> * Search configuration |
+| install    | Wrapper             | ✅            |                                                                          |
+| uninstall  | Wrapper             | ✅            | * Terminate running processes                                            |
+| update     | Wrapper             | ✅            |                                                                          |
+| alias      |                     |              |                                                                          |
+| bucket     |                     |              |                                                                          |
+| cache      |                     |              |                                                                          |
+| cat        |                     |              |                                                                          |
+| checkup    |                     |              |                                                                          |
+| cleanup    |                     |              |                                                                          |
+| config     |                     |              |                                                                          |
+| create     |                     |              |                                                                          |
+| depends    |                     |              |                                                                          |
+| download   |                     |              |                                                                          |
+| export     |                     |              |                                                                          |
+| help       |                     |              |                                                                          |
+| hold       |                     |              |                                                                          |
+| home       |                     |              |                                                                          |
+| import     |                     |              |                                                                          |
+| info       |                     |              |                                                                          |
+| list       |                     |              |                                                                          |
+| prefix     |                     |              |                                                                          |
+| reset      |                     |              |                                                                          |
+| shim       |                     |              |                                                                          |
+| status     |                     |              |                                                                          |
+| unhold     |                     |              |                                                                          |
+| virustotal |                     |              |                                                                          |
+| which      |                     |              |                                                                          |
 
 ## Search
 
