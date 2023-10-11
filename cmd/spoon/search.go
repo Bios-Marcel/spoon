@@ -16,6 +16,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var allSearchFields = []string{SearchFieldName, SearchFieldBin, SearchFieldDescription}
+
 func searchCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "search",
@@ -196,10 +198,32 @@ func searchCmd() *cobra.Command {
 	cmd.Flags().IntP("workers", "w", runtime.NumCPU(), "Sets the maximum amount of workers to do background tasks with")
 	cmd.Flags().BoolP("case-insensitive", "i", true, "Defines whether any text matching is case insensitive")
 
-	// FIXME Add flag completion: cmd.RegisterFlagCompletionFunc
-	cmd.Flags().StringSliceP("fields", "f", []string{SearchFieldName, SearchFieldBin, SearchFieldDescription}, "Specifies the fields which are searched in. Available: bin, name, description")
+	cmd.Flags().StringSliceP("fields", "f", allSearchFields, "Specifies the fields which are searched in. Available: bin, name, description")
 	cmd.Flags().StringSliceP("not-fields", "", nil, "Opposite of --fields")
+	cmd.RegisterFlagCompletionFunc("fields", autocompleteSearchFieldFlag)
+	cmd.RegisterFlagCompletionFunc("not-fields", autocompleteSearchFieldFlag)
 	cmd.MarkFlagsMutuallyExclusive("fields", "not-fields")
 
 	return cmd
+}
+
+// autocompleteSearchFieldFlag will autocomplete single search fields. This does
+// not allow passing things such as "bin,desc<Complete>". For some reason this
+// does not work.
+func autocompleteSearchFieldFlag(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	if toComplete == "" {
+		return allSearchFields, cobra.ShellCompDirectiveNoFileComp
+	}
+
+	var leftoverFields []string
+	for _, field := range allSearchFields {
+		if strings.HasPrefix(field, toComplete) {
+			leftoverFields = append(leftoverFields, field)
+		}
+	}
+
+	if len(leftoverFields) == 0 {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	return leftoverFields, cobra.ShellCompDirectiveNoFileComp
 }
