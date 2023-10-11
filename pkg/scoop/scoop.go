@@ -111,12 +111,12 @@ func (a *App) LoadDetails() error {
 }
 
 func GetInstalledApps() ([]App, error) {
-	home, err := os.UserHomeDir()
+	scoopHome, err := GetAppsDir()
 	if err != nil {
-		return nil, fmt.Errorf("error getting home directory: %w", err)
+		return nil, fmt.Errorf("error getting scoop home directory: %w", err)
 	}
 
-	manifestPaths, err := filepath.Glob(filepath.Join(home, "scoop/apps/*/current/manifest.json"))
+	manifestPaths, err := filepath.Glob(filepath.Join(scoopHome, "*/current/manifest.json"))
 	if err != nil {
 		return nil, fmt.Errorf("error globbing manifests: %w", err)
 	}
@@ -130,4 +130,29 @@ func GetInstalledApps() ([]App, error) {
 	}
 
 	return apps, nil
+}
+
+func GetScoopDir() (string, error) {
+	scoopEnv := os.Getenv("SCOOP")
+	if scoopEnv != "" {
+		return scoopEnv, nil
+	}
+
+	// FIXME Read scoop config, as it takes precedence over fallback
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("error getting home directory: %w", err)
+	}
+
+	return filepath.Join(home, "scoop"), nil
+}
+
+func GetAppsDir() (string, error) {
+	scoopHome, err := GetScoopDir()
+	if err != nil {
+		return "", fmt.Errorf("error getting scoop home directory: %w", err)
+	}
+
+	return filepath.Join(scoopHome, "apps"), nil
 }

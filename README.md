@@ -34,7 +34,7 @@ Rough overview of progress.
 | ---------- | ------------------------------- | ----------------------------------------------------------- |
 | search     | ✅                               | Performance improvements, JSON output, Search configuration |
 | install    | ✅                               |                                                             |
-| uninstall  | ✅                               |                                                             |
+| uninstall  | ✅                               | Terminate running processes                                 |
 | update     | ✅                               |                                                             |
 | alias      |                                 |                                                             |
 | bucket     |                                 |                                                             |
