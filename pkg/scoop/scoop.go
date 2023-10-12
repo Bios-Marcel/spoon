@@ -22,19 +22,31 @@ type Bucket string
 
 // Bucket is the directory name of the bucket and therefore name of the bucket.
 func (b Bucket) Name() string {
-	return filepath.Base(filepath.Dir(filepath.Clean(string(b))))
+	return filepath.Base(filepath.Clean(string(b)))
 }
 
-// Path is the directory path of the bucket.
-func (b Bucket) Path() string {
+// Dir is the bucket directory, which contains the subdirectory "bucket" with
+// the manifests.
+func (b Bucket) Dir() string {
 	return string(b)
+}
+
+// ManifestDir is the directory path of the bucket.
+func (b Bucket) ManifestDir() string {
+	return filepath.Join(string(b), "bucket")
+}
+
+// Remove removes the bucket, but doesn't unisntall any of its installed
+// applications.
+func (b Bucket) Remove() error {
+	return os.RemoveAll(b.Dir())
 }
 
 // AvailableApps returns unloaded app manifests. You need to call
 // [App.LoadDetails] on each one. This allows for optimisation by
 // parallelisation where desired.
 func (b Bucket) AvailableApps() ([]App, error) {
-	entries, err := getDirEntries(b.Path())
+	entries, err := getDirEntries(b.ManifestDir())
 	if err != nil {
 		return nil, fmt.Errorf("error getting bucket entries: %w", err)
 	}
@@ -45,7 +57,7 @@ func (b Bucket) AvailableApps() ([]App, error) {
 		apps[index] = App{
 			// Cut off .json
 			Name:         name[:len(name)-5],
-			manifestPath: filepath.Join(b.Path(), name),
+			manifestPath: filepath.Join(b.ManifestDir(), name),
 		}
 	}
 
@@ -81,7 +93,7 @@ func GetLocalBuckets() ([]Bucket, error) {
 		return nil, fmt.Errorf("error getting home directory: %w", err)
 	}
 
-	bucketPaths, err := filepath.Glob(filepath.Join(home, "scoop/buckets/*/bucket"))
+	bucketPaths, err := filepath.Glob(filepath.Join(home, "scoop/buckets/*"))
 	if err != nil {
 		return nil, fmt.Errorf("error globbing buckets: %w", err)
 	}

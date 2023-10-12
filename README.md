@@ -45,7 +45,7 @@ don't see the value personally. However, you are free to contribute.
 | install    | Wrapper             | ✅            |                                                                          |
 | uninstall  | Wrapper             | ✅            | * Terminate running processes                                            |
 | update     | Wrapper             | ✅            |                                                                          |
-| bucket     | Wrapper             | Partially    |                                                                          |
+| bucket     | Wrapper             | ✅            | * `bucket rm` now supports multiple buckets to delete at once            |
 | alias      |                     |              |                                                                          |
 | cache      |                     |              |                                                                          |
 | cat        |                     |              |                                                                          |

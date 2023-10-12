@@ -17,6 +17,9 @@ func bucketCmd() *cobra.Command {
 	bucketRoot.AddCommand(
 		&cobra.Command{
 			Use: "add",
+			Aliases: []string{
+				"install",
+			},
 			// Either a "known bucket" or "bucket name" "url".
 			Args: cobra.RangeArgs(1, 2),
 			ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
@@ -38,7 +41,12 @@ func bucketCmd() *cobra.Command {
 			},
 		},
 		&cobra.Command{
-			Use:  "rm",
+			Use: "rm",
+			Aliases: []string{
+				"remove",
+				"delete",
+				"uninstall",
+			},
 			Args: cobra.MinimumNArgs(1),
 			ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 				buckets, err := scoop.GetLocalBuckets()
@@ -60,9 +68,34 @@ func bucketCmd() *cobra.Command {
 				return bucketNames, cobra.ShellCompDirectiveDefault
 			},
 			Run: func(cmd *cobra.Command, args []string) {
-				// FIXME Implement ourselves
-				for _, bucketName := range args {
-					execScoopCommand("bucket rm", bucketName)
+				buckets, err := scoop.GetLocalBuckets()
+				if err != nil {
+					fmt.Println(err)
+					os.Exit(1)
+				}
+
+				var bucketsToDelete []scoop.Bucket
+			BUCKET_LOOP:
+				for _, bucket := range buckets {
+					for _, arg := range args {
+						if bucket.Name() == arg {
+							bucketsToDelete = append(bucketsToDelete, bucket)
+							continue BUCKET_LOOP
+						}
+					}
+				}
+
+				var failed bool
+				for _, bucket := range bucketsToDelete {
+					fmt.Printf("Removing bucket '%s'...\n", bucket.Name())
+					if err := bucket.Remove(); err != nil {
+						fmt.Printf("Failed to remove bucket '%s': %s\n", bucket.Name(), err)
+						failed = true
+					}
+				}
+
+				if failed {
+					os.Exit(1)
 				}
 			},
 		},
