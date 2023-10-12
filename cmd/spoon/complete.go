@@ -14,7 +14,7 @@ func autocompleteAvailable(cmd *cobra.Command, args []string, toComplete string)
 	}
 
 	toComplete = strings.ToLower(toComplete)
-	var matches []string
+	matches := make([]string, 0, 20000)
 
 	for _, bucket := range buckets {
 		apps, err := bucket.AvailableApps()
