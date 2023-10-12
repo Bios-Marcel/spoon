@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/Bios-Marcel/spoon/pkg/scoop"
 	"github.com/spf13/cobra"
@@ -16,10 +17,19 @@ func bucketCmd() *cobra.Command {
 
 	bucketRoot.AddCommand(
 		&cobra.Command{
-			Use: "add",
+			Use: "add { bucket | name url }",
 			Aliases: []string{
 				"install",
 			},
+			Short: "Adds a bucket to scoop",
+			Long: strings.TrimSpace(`
+Add a bucket to scoop. This allows you to install apps from that bucket.
+
+This command accepts one or two arguments. Either a known bucket (see spoon bucket known) or "bucketname" "url".`),
+			Example: examples(
+				"spoon bucket add games",
+				"spoon bucket custom https://github.com/user/repo.git",
+			),
 			// Either a "known bucket" or "bucket name" "url".
 			Args: cobra.RangeArgs(1, 2),
 			ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
@@ -47,6 +57,11 @@ func bucketCmd() *cobra.Command {
 				"delete",
 				"uninstall",
 			},
+			Short: "Removes bucket(s) from scoop",
+			Example: examples(
+				"spoon bucket rm games",
+				"spoon bucket rm games extras java",
+			),
 			Args: cobra.MinimumNArgs(1),
 			ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 				buckets, err := scoop.GetLocalBuckets()
@@ -100,13 +115,15 @@ func bucketCmd() *cobra.Command {
 			},
 		},
 		&cobra.Command{
-			Use: "list",
+			Use:   "list",
+			Short: "Lists all added buckets",
 			Run: func(cmd *cobra.Command, args []string) {
 				os.Exit(execScoopCommand("bucket list"))
 			},
 		},
 		&cobra.Command{
-			Use: "known",
+			Use:   "known",
+			Short: "Lists all known buckets",
 			Run: func(cmd *cobra.Command, args []string) {
 				knownBuckets, err := getKnownBucketsFlat()
 				if err != nil {
