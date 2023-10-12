@@ -45,8 +45,8 @@ don't see the value personally. However, you are free to contribute.
 | install    | Wrapper             | ✅            |                                                                          |
 | uninstall  | Wrapper             | ✅            | * Terminate running processes                                            |
 | update     | Wrapper             | ✅            |                                                                          |
+| bucket     | Wrapper             | Partially    |                                                                          |
 | alias      |                     |              |                                                                          |
-| bucket     |                     |              |                                                                          |
 | cache      |                     |              |                                                                          |
 | cat        |                     |              |                                                                          |
 | checkup    |                     |              |                                                                          |

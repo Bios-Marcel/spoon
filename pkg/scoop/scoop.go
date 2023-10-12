@@ -22,7 +22,7 @@ type Bucket string
 
 // Bucket is the directory name of the bucket and therefore name of the bucket.
 func (b Bucket) Name() string {
-	return filepath.Base(filepath.Clean(string(b)))
+	return filepath.Base(filepath.Dir(filepath.Clean(string(b))))
 }
 
 // Path is the directory path of the bucket.
@@ -50,6 +50,28 @@ func (b Bucket) AvailableApps() ([]App, error) {
 	}
 
 	return apps, nil
+}
+
+// GetKnownBuckets returns the list of available "default" buckets that are
+// available, but might have not necessarily been installed locally.
+func GetKnownBuckets() (map[string]string, error) {
+	knownBuckets := make(map[string]string)
+	scoopInstallationDir, err := GetScoopInstallationDir()
+	if err != nil {
+		return nil, fmt.Errorf("error getting scoop installation directory: %w", err)
+	}
+
+	file, err := os.Open(filepath.Join(scoopInstallationDir, "buckets.json"))
+	if err != nil {
+		return nil, fmt.Errorf("error opening buckets.json: %w", err)
+	}
+	defer file.Close()
+
+	if err := json.NewDecoder(file).Decode(&knownBuckets); err != nil {
+		return nil, fmt.Errorf("error decoding buckets.json: %w", err)
+	}
+
+	return knownBuckets, nil
 }
 
 // GetLocalBuckets is an API representation of locally installed buckets.
@@ -130,6 +152,24 @@ func GetInstalledApps() ([]App, error) {
 	}
 
 	return apps, nil
+}
+
+func GetScoopBucketDir() (string, error) {
+	scoopHome, err := GetScoopDir()
+	if err != nil {
+		return "", fmt.Errorf("error getting scoop home directory: %w", err)
+	}
+
+	return filepath.Join(scoopHome, "buckets"), nil
+}
+
+func GetScoopInstallationDir() (string, error) {
+	appsDir, err := GetAppsDir()
+	if err != nil {
+		return "", fmt.Errorf("error getting scoop apps directory: %w", err)
+	}
+
+	return filepath.Join(appsDir, "scoop", "current"), nil
 }
 
 func GetScoopDir() (string, error) {

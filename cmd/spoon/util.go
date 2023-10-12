@@ -9,7 +9,7 @@ import (
 )
 
 func execScoopCommand(command string, args ...string) int {
-	cmd := exec.Command("scoop", append([]string{command}, args...)...)
+	cmd := exec.Command("scoop", append(strings.Split(command, " "), args...)...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
