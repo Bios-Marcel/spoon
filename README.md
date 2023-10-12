@@ -36,39 +36,40 @@ before / after the actual scoop commands.
 **For now, the global mode isn't support for custom commands, as I personally
 don't use that feature for now.**
 
-Some command will also probably never be fully completed. Such as alias, as I
-don't see the value personally. However, you are free to contribute.
+Some commands will also probably never be fully completed. Such as alias, as I
+don't see the value personally. However, you are free to contribute. The
+commands are roughly ordered by priority.
 
 | Command    | Implementation Type | Autocomplete | Changes                                                                  |
 | ---------- | ------------------- | ------------ | ------------------------------------------------------------------------ |
+| help       | Custom              | ✅            |                                                                          |
 | search     | Custom              | ✅            | * Performance improvements<br/>* JSON output<br/> * Search configuration |
 | install    | Wrapper             | ✅            |                                                                          |
 | uninstall  | Wrapper             | ✅            | * Terminate running processes                                            |
 | update     | Wrapper             | ✅            |                                                                          |
 | bucket     | Wrapper             | ✅            | * `bucket rm` now supports multiple buckets to delete at once            |
-| alias      |                     |              |                                                                          |
-| cache      |                     |              |                                                                          |
-| cat        |                     |              |                                                                          |
-| checkup    |                     |              |                                                                          |
+| list       |                     |              |                                                                          |
+| status     |                     |              |                                                                          |
+| info       |                     |              |                                                                          |
+| cat        |                     |              | * Alias `manifest`                                                       |
+| hold       |                     |              |                                                                          |
+| unhold     |                     |              |                                                                          |
+| reset      |                     |              |                                                                          |
 | cleanup    |                     |              |                                                                          |
-| config     |                     |              |                                                                          |
 | create     |                     |              |                                                                          |
 | depends    |                     |              |                                                                          |
-| download   |                     |              |                                                                          |
-| export     |                     |              |                                                                          |
-| help       |                     |              |                                                                          |
-| hold       |                     |              |                                                                          |
-| home       |                     |              |                                                                          |
-| import     |                     |              |                                                                          |
-| info       |                     |              |                                                                          |
-| list       |                     |              |                                                                          |
-| prefix     |                     |              |                                                                          |
-| reset      |                     |              |                                                                          |
 | shim       |                     |              |                                                                          |
-| status     |                     |              |                                                                          |
-| unhold     |                     |              |                                                                          |
-| virustotal |                     |              |                                                                          |
 | which      |                     |              |                                                                          |
+| config     |                     |              |                                                                          |
+| download   |                     |              |                                                                          |
+| cache      |                     |              |                                                                          |
+| prefix     |                     |              |                                                                          |
+| home       |                     |              |                                                                          |
+| export     |                     |              |                                                                          |
+| import     |                     |              |                                                                          |
+| checkup    |                     |              |                                                                          |
+| virustotal |                     |              |                                                                          |
+| alias      |                     |              |                                                                          |
 
 ## Search
 
