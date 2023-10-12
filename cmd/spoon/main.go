@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -28,6 +30,12 @@ func main() {
 	outFormat = rootCmd.PersistentFlags().String("out-format", "plain", "Specifies the output format to use for any data printed")
 
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
+		if strings.HasPrefix(err.Error(), "unknown command") {
+			fmt.Println("Delegating to scoop ...")
+			execScoopCommand(os.Args[1], os.Args[2:]...)
+		} else {
+			fmt.Println("error:", err)
+			os.Exit(1)
+		}
 	}
 }

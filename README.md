@@ -40,6 +40,8 @@ Some commands will also probably never be fully completed. Such as alias, as I
 don't see the value personally. However, you are free to contribute. The
 commands are roughly ordered by priority.
 
+All unknown commands are delegated to scoop by default.
+
 | Command    | Implementation Type | Autocomplete | Changes                                                                  |
 | ---------- | ------------------- | ------------ | ------------------------------------------------------------------------ |
 | help       | Custom              | ✅            |                                                                          |
