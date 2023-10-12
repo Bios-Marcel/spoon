@@ -73,10 +73,8 @@ PROCESS_LOOP:
 		process := processes[i]
 		for _, processPrefix := range processPrefixes {
 			if strings.HasPrefix(strings.ToLower(process.Fullpath), processPrefix) {
-				if i != len(processes)-1 {
-					processes[i] = processes[len(processes)-1]
-					processes = processes[:len(processes)-1]
-				}
+				processes[i], processes = processes[len(processes)-1], processes[:len(processes)-1]
+				i--
 				processesToKill = append(processesToKill, process)
 				continue PROCESS_LOOP
 			}
