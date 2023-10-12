@@ -14,6 +14,9 @@ func main() {
 	rootCmd := cobra.Command{
 		Use:   "spoon",
 		Short: "Wrapper around scoop, that offers the same functionality, but better.",
+		CompletionOptions: cobra.CompletionOptions{
+			HiddenDefaultCmd: true,
+		},
 	}
 
 	rootCmd.AddCommand(searchCmd())
