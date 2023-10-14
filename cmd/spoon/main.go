@@ -16,6 +16,14 @@ func main() {
 	rootCmd := cobra.Command{
 		Use:   "spoon",
 		Short: "Wrapper around scoop, that offers the same functionality, but better.",
+		// By default, subcommand aliases aren't autocompleted.
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+			var aliases []string
+			for _, subCmd := range cmd.Commands() {
+				aliases = append(aliases, subCmd.Aliases...)
+			}
+			return aliases, cobra.ShellCompDirectiveNoFileComp
+		},
 		CompletionOptions: cobra.CompletionOptions{
 			HiddenDefaultCmd: true,
 		},
