@@ -218,7 +218,14 @@ func searchCmd() *cobra.Command {
 					})
 				}
 			}
-			switch *outFormat {
+
+			outFormat, err := cmd.Flags().GetString("out-format")
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+
+			switch outFormat {
 			case "json":
 				if cmd.Flags().Changed("sort") {
 					sort()
@@ -247,6 +254,7 @@ func searchCmd() *cobra.Command {
 
 	cmd.Flags().IntP("workers", "w", runtime.NumCPU(), "Sets the maximum amount of workers to do background tasks with")
 	cmd.Flags().BoolP("case-insensitive", "i", true, "Defines whether any text matching is case insensitive")
+	cmd.Flags().String("out-format", "plain", "Specifies the output format to use for any data printed")
 
 	cmd.Flags().StringSliceP("sort", "s", []string{SortFieldName}, "Specifies fields which are sorted by. Available: name, bucket; The order determines the sorting weight. For JSON format, sorting is disabled by default.")
 	cmd.Flags().StringSliceP("fields", "f", allSearchFields, "Specifies the fields which are searched in. Available: bin, name, description")

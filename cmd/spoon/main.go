@@ -8,10 +8,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	outFormat *string
-)
-
 func main() {
 	rootCmd := cobra.Command{
 		Use:   "spoon",
@@ -37,8 +33,6 @@ func main() {
 	rootCmd.AddCommand(catCmd())
 	rootCmd.AddCommand(statusCmd())
 	rootCmd.AddCommand(infoCmd())
-
-	outFormat = rootCmd.PersistentFlags().String("out-format", "plain", "Specifies the output format to use for any data printed")
 
 	if err := rootCmd.Execute(); err != nil {
 		if strings.HasPrefix(err.Error(), "unknown command") {
