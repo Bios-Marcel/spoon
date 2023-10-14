@@ -40,16 +40,6 @@ func getFlags(cmd *cobra.Command, flags ...string) ([]string, error) {
 	return outFlags, nil
 }
 
-// equals checks for string equality, optionally ignoring casing. The value `b`
-// is expected to be lowered already, if `ci` has been set.
-func equals(a, b string, ci bool) bool {
-	if ci {
-		return strings.EqualFold(a, b)
-	}
-
-	return a == b
-}
-
 // equals checks whether `whole` contains substring `find`, optionally ignoring
 // casing. The value `find` is expected to be lowered already, if `ci` has been
 // set.

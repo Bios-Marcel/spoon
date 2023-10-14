@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
-	"sort"
 	"strings"
 	"sync"
 
@@ -38,13 +37,22 @@ const (
 	SearchFieldDescription = "description"
 )
 
-var allSearchFields = []string{SearchFieldName, SearchFieldBin, SearchFieldDescription}
+type SortField string
+
+const (
+	SortFieldName   = "name"
+	SortFieldBucket = "bucket"
+)
+
+var (
+	allSearchFields = []string{SearchFieldName, SearchFieldBin, SearchFieldDescription}
+)
 
 func searchCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "search",
 		Short:   "Find a scoop package by search query.",
-		Aliases: []string{"find", "s"},
+		Aliases: []string{"find"},
 		Example: "search git",
 		Args:    cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
@@ -89,7 +97,7 @@ func searchCmd() *cobra.Command {
 			var wg sync.WaitGroup
 
 			syncQueue := make(chan match, searchWorkers)
-			match := func(job searchJob, app scoop.App) {
+			doMatch := func(job searchJob, app scoop.App) {
 				syncQueue <- match{
 					Description: app.Description,
 					Version:     app.Version,
@@ -118,7 +126,7 @@ func searchCmd() *cobra.Command {
 							app := job.app
 							if (searchName && contains(app.Name, search, caseInsensitive)) ||
 								(searchDescription && contains(app.Description, search, caseInsensitive)) {
-								match(job, app)
+								doMatch(job, app)
 								return
 							}
 
@@ -126,13 +134,13 @@ func searchCmd() *cobra.Command {
 								switch castBin := app.Bin.(type) {
 								case string:
 									if contains(filepath.Base(castBin), search, caseInsensitive) {
-										match(job, app)
+										doMatch(job, app)
 										return
 									}
 								case []string:
 									for _, bin := range castBin {
 										if contains(filepath.Base(bin), search, caseInsensitive) {
-											match(job, app)
+											doMatch(job, app)
 											return
 										}
 									}
@@ -178,17 +186,49 @@ func searchCmd() *cobra.Command {
 
 			wg.Wait()
 
+			sortFields, err := cmd.Flags().GetStringSlice("sort")
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+
+			sort := func() {
+				var compareFns []func(a, b match) int
+				for _, sortField := range sortFields {
+					switch sortField {
+					case SortFieldName:
+						compareFns = append(compareFns, func(a, b match) int {
+							return strings.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name))
+						})
+					case SortFieldBucket:
+						compareFns = append(compareFns, func(a, b match) int {
+							return strings.Compare(strings.ToLower(a.Bucket), strings.ToLower(b.Bucket))
+						})
+					}
+				}
+
+				if len(compareFns) > 0 {
+					slices.SortStableFunc(matchList, func(a, b match) int {
+						for _, compareFn := range compareFns {
+							if result := compareFn(a, b); result != 0 {
+								return result
+							}
+						}
+						return 0
+					})
+				}
+			}
 			switch *outFormat {
 			case "json":
+				if cmd.Flags().Changed("sort") {
+					sort()
+				}
 				if err := json.NewEncoder(os.Stdout).Encode(matchList); err != nil {
 					fmt.Println(err)
 					return
 				}
 			case "plain":
-				sort.Slice(matchList, func(i, j int) bool {
-					a, b := matchList[i], matchList[j]
-					return a.Name < b.Name
-				})
+				sort()
 
 				tbl := table.New("Name", "Version", "Bucket", "Description")
 
@@ -208,6 +248,7 @@ func searchCmd() *cobra.Command {
 	cmd.Flags().IntP("workers", "w", runtime.NumCPU(), "Sets the maximum amount of workers to do background tasks with")
 	cmd.Flags().BoolP("case-insensitive", "i", true, "Defines whether any text matching is case insensitive")
 
+	cmd.Flags().StringSliceP("sort", "s", []string{SortFieldName}, "Specifies fields which are sorted by. Available: name, bucket; The order determines the sorting weight. For JSON format, sorting is disabled by default.")
 	cmd.Flags().StringSliceP("fields", "f", allSearchFields, "Specifies the fields which are searched in. Available: bin, name, description")
 	cmd.Flags().StringSliceP("not-fields", "", nil, "Opposite of --fields")
 	cmd.RegisterFlagCompletionFunc("fields", autocompleteSearchFieldFlag)
