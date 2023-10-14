@@ -51,7 +51,7 @@ All unknown commands are delegated to scoop by default.
 | update     | Wrapper             | ✅            |                                                                          |
 | bucket     | Wrapper             | ✅            | * `bucket rm` now supports multiple buckets to delete at once            |
 | cat        | Wrapper             | ✅            | * Alias `manifest`                                                       |
-| status     |                     |              |                                                                          |
+| status     | Wrapper             | ✅            |                                                                          |
 | list       |                     |              |                                                                          |
 | info       |                     |              |                                                                          |
 | hold       |                     |              |                                                                          |
