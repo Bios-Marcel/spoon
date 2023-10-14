@@ -50,10 +50,10 @@ All unknown commands are delegated to scoop by default.
 | uninstall  | Wrapper             | ✅            | * Terminate running processes                                            |
 | update     | Wrapper             | ✅            |                                                                          |
 | bucket     | Wrapper             | ✅            | * `bucket rm` now supports multiple buckets to delete at once            |
-| list       |                     |              |                                                                          |
+| cat        | Wrapper             | ✅            | * Alias `manifest`                                                       |
 | status     |                     |              |                                                                          |
+| list       |                     |              |                                                                          |
 | info       |                     |              |                                                                          |
-| cat        |                     |              | * Alias `manifest`                                                       |
 | hold       |                     |              |                                                                          |
 | unhold     |                     |              |                                                                          |
 | reset      |                     |              |                                                                          |

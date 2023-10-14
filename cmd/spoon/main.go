@@ -34,6 +34,7 @@ func main() {
 	rootCmd.AddCommand(uninstallCmd())
 	rootCmd.AddCommand(updateCmd())
 	rootCmd.AddCommand(bucketCmd())
+	rootCmd.AddCommand(catCmd())
 
 	outFormat = rootCmd.PersistentFlags().String("out-format", "plain", "Specifies the output format to use for any data printed")
 
