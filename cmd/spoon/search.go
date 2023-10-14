@@ -116,7 +116,7 @@ func searchCmd() *cobra.Command {
 							}
 
 							app := job.app
-							if (searchName && equals(app.Name, search, caseInsensitive)) ||
+							if (searchName && contains(app.Name, search, caseInsensitive)) ||
 								(searchDescription && contains(app.Description, search, caseInsensitive)) {
 								match(job, app)
 								return
