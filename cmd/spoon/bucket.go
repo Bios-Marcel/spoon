@@ -121,37 +121,40 @@ This command accepts one or two arguments. Either a known bucket (see spoon buck
 				os.Exit(execScoopCommand("bucket list"))
 			},
 		},
-		&cobra.Command{
-			Use:   "known",
-			Short: "Lists all known buckets",
-			Run: func(cmd *cobra.Command, args []string) {
-				knownBuckets, err := getKnownBucketsFlat()
-				if err != nil {
-					fmt.Println(err)
-					os.Exit(1)
-				}
-
-				format, err := cmd.InheritedFlags().GetString("out-format")
-				if err != nil {
-					fmt.Println(err)
-					os.Exit(1)
-				}
-
-				switch format {
-				case "plain":
-					for _, bucketName := range knownBuckets {
-						fmt.Println(bucketName)
-					}
-				case "json":
-					if err := json.NewEncoder(os.Stdout).Encode(knownBuckets); err != nil {
-						fmt.Println(err)
-						os.Exit(1)
-					}
-				}
-			},
-		},
 	)
 
+	knownCmd := &cobra.Command{
+		Use:   "known",
+		Short: "Lists all known buckets",
+		Run: func(cmd *cobra.Command, args []string) {
+			knownBuckets, err := getKnownBucketsFlat()
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+
+			format, err := cmd.Flags().GetString("out-format")
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+
+			switch format {
+			case "plain":
+				for _, bucketName := range knownBuckets {
+					fmt.Println(bucketName)
+				}
+			case "json":
+				if err := json.NewEncoder(os.Stdout).Encode(knownBuckets); err != nil {
+					fmt.Println(err)
+					os.Exit(1)
+				}
+			}
+		},
+	}
+	knownCmd.Flags().String("out-format", "plain", "Specifies the output format to use for any data printed")
+
+	bucketRoot.AddCommand(knownCmd)
 	return bucketRoot
 }
 
