@@ -106,6 +106,11 @@ func searchCmd() *cobra.Command {
 				}
 			}
 
+			detailFieldsToLoad := []string{
+				scoop.DetailFieldBin,
+				scoop.DetailFieldDescription,
+				scoop.DetailFieldVersion,
+			}
 			for i := 0; i < searchWorkers; i++ {
 				go func() {
 					for {
@@ -118,7 +123,7 @@ func searchCmd() *cobra.Command {
 								}
 							}()
 
-							if err := job.app.LoadDetails(); err != nil {
+							if err := job.app.LoadDetails(detailFieldsToLoad...); err != nil {
 								fmt.Println("Error loading app metadata")
 								os.Exit(1)
 							}
@@ -131,18 +136,10 @@ func searchCmd() *cobra.Command {
 							}
 
 							if searchBin {
-								switch castBin := app.Bin.(type) {
-								case string:
-									if contains(filepath.Base(castBin), search, caseInsensitive) {
+								for _, bin := range app.Bin {
+									if contains(filepath.Base(bin), search, caseInsensitive) {
 										doMatch(job, app)
 										return
-									}
-								case []string:
-									for _, bin := range castBin {
-										if contains(filepath.Base(bin), search, caseInsensitive) {
-											doMatch(job, app)
-											return
-										}
 									}
 								}
 							}

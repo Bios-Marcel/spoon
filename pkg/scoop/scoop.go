@@ -3,10 +3,14 @@ package scoop
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
+
+	"github.com/buger/jsonparser"
 )
 
 func getDirEntries(dir string) ([]fs.FileInfo, error) {
@@ -14,7 +18,6 @@ func getDirEntries(dir string) ([]fs.FileInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return dirHandle.Readdir(-1)
 }
 
@@ -40,6 +43,47 @@ func (b Bucket) ManifestDir() string {
 // applications.
 func (b Bucket) Remove() error {
 	return os.RemoveAll(b.Dir())
+}
+func GetApp(name string) (*App, error) {
+	app, err := GetAvailableApp(name)
+	if err != nil {
+		return nil, fmt.Errorf("error getting installed app: %w", err)
+	}
+	if app != nil {
+		return app, nil
+	}
+	return GetInstalledApp(name)
+}
+
+func GetAvailableApp(name string) (*App, error) {
+	buckets, err := GetLocalBuckets()
+	if err != nil {
+		return nil, fmt.Errorf("error getting local buckets: %w", err)
+	}
+	for _, bucket := range buckets {
+		// Since we are on windows, this is case insensitive.
+		potentialManifest := filepath.Join(bucket.Dir(), name+".json")
+		if _, err := os.Stat(potentialManifest); err == nil {
+			return &App{
+				Name:         name,
+				manifestPath: potentialManifest,
+			}, nil
+		}
+	}
+	return nil, nil
+}
+
+func GetInstalledApp(name string) (*App, error) {
+	apps, err := GetInstalledApps()
+	if err != nil {
+		return nil, fmt.Errorf("error getting installed apps: %w", err)
+	}
+	for _, app := range apps {
+		if strings.EqualFold(app.Name, name) {
+			return &app, nil
+		}
+	}
+	return nil, nil
 }
 
 // AvailableApps returns unloaded app manifests. You need to call
@@ -110,37 +154,79 @@ func GetLocalBuckets() ([]Bucket, error) {
 // example when you are using an auto-generated manifest for a version that's
 // not available anymore. In that case, scoop will lose the bucket information.
 type App struct {
-	manifestPath string
 	Name         string `json:"name"`
 	Description  string `json:"description"`
-	Bin          any    `json:"bin"`
 	Version      string `json:"version"`
+	Notes        string `json:"notes"`
+	manifestPath string
+	Bin          []string `json:"bin"`
+	loaded       bool
 }
 
 func (a App) ManifestPath() string {
 	return a.manifestPath
 }
 
+const (
+	DetailFieldBin         = "bin"
+	DetailFieldDescription = "description"
+	DetailFieldVersion     = "version"
+	DetailFieldNotes       = "notes"
+)
+
 // LoadDetails will load additional data regarding the manifest, such as
 // description and version information. This causes IO on your drive and
 // therefore isn't done by default.
-func (a *App) LoadDetails() error {
-	// We are abuising the version to indicate whether we have already loaded
-	// the manifest, as the version can't be empty.
-	if a.Version != "" {
+func (a *App) LoadDetails(fields ...string) error {
+	if a.loaded {
 		return nil
 	}
 
 	file, err := os.Open(a.manifestPath)
 	if err != nil {
-		return fmt.Errorf("error loading app manifest: %w", err)
+		return fmt.Errorf("error opening app manifest: %w", err)
 	}
 	defer file.Close()
 
-	if err := json.NewDecoder(file).Decode(a); err != nil {
-		return fmt.Errorf("error decoding manifest: %w", err)
+	bytes, err := io.ReadAll(file)
+	if err != nil {
+		return fmt.Errorf("error reading app manifest: %w", err)
 	}
 
+	err = jsonparser.ObjectEach(bytes, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
+		field := string(key)
+		if !slices.Contains(fields, field) {
+			return nil
+		}
+		switch field {
+		case DetailFieldDescription:
+			a.Description = string(value)
+		case DetailFieldVersion:
+			a.Version = string(value)
+		case DetailFieldBin:
+			if dataType == jsonparser.String {
+				a.Bin = []string{string(value)}
+			} else if dataType == jsonparser.Array {
+				_, err := jsonparser.ArrayEach(value, func(value []byte, _ jsonparser.ValueType, _ int, err error) {
+					if err != nil {
+						return
+					}
+					a.Bin = append(a.Bin, string(value))
+				})
+				if err != nil {
+					return fmt.Errorf("error parsing bin array: %w", err)
+				}
+			}
+		case DetailFieldNotes:
+			a.Notes = string(value)
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("error parsing app manifest: %w", err)
+	}
+
+	a.loaded = true
 	return nil
 }
 
