@@ -9,6 +9,10 @@ import (
 )
 
 func main() {
+	// This seems to provide no value whatsoever, it seemingly doesn't even do
+	// what's documented. All it does, is take time.
+	cobra.MousetrapHelpText = ""
+
 	rootCmd := cobra.Command{
 		Use:   "spoon",
 		Short: "Wrapper around scoop, that offers the same functionality, but better.",
