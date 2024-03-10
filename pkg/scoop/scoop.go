@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -62,7 +63,7 @@ func GetAvailableApp(name string) (*App, error) {
 	}
 	for _, bucket := range buckets {
 		// Since we are on windows, this is case insensitive.
-		potentialManifest := filepath.Join(bucket.Dir(), name+".json")
+		potentialManifest := filepath.Join(bucket.ManifestDir(), name+".json")
 		if _, err := os.Stat(potentialManifest); err == nil {
 			return &App{
 				Name:         name,
@@ -284,6 +285,26 @@ func GetScoopDir() (string, error) {
 	}
 
 	return filepath.Join(home, "scoop"), nil
+}
+
+// cachePathRegex applies the same rules to the name components as scoop does.
+var cachePathRegex = regexp.MustCompile(`[^\w\.\-]+`)
+
+func CachePath(app, version, url string) string {
+	parts := []string{app, version, url}
+	for i, part := range parts {
+		parts[i] = cachePathRegex.ReplaceAllString(part, "_")
+	}
+	return strings.Join(parts, "#")
+}
+
+func GetCacheDir() (string, error) {
+	scoopHome, err := GetScoopDir()
+	if err != nil {
+		return "", fmt.Errorf("error getting scoop home directory: %w", err)
+	}
+
+	return filepath.Join(scoopHome, "cache"), nil
 }
 
 func GetAppsDir() (string, error) {
