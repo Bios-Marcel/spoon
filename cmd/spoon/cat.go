@@ -1,6 +1,13 @@
 package main
 
-import "github.com/spf13/cobra"
+import (
+	"fmt"
+	"io"
+	"os"
+
+	"github.com/Bios-Marcel/spoon/pkg/scoop"
+	"github.com/spf13/cobra"
+)
 
 func catCmd() *cobra.Command {
 	return &cobra.Command{
@@ -15,7 +22,23 @@ func catCmd() *cobra.Command {
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: autocompleteAvailable,
 		Run: func(cmd *cobra.Command, args []string) {
-			execScoopCommand("cat", args...)
+			app, err := scoop.GetApp(args[0])
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+
+			handle, err := os.Open(app.ManifestPath())
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+
+			_, err = io.Copy(os.Stdout, handle)
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
 		},
 	}
 }
