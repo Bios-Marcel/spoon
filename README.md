@@ -1,13 +1,13 @@
+# Spoon
 
+A wrapper around `scoop`, replacing `scoop search` and offering an improved user
+experience.
 
-The goal is to provide a fast and easy to use addition to scoop.
+## Features
 
-The main inspiration is the fact that scoop doesn't do proper cleaning of
-cache and installed apps and the search is slow as hell, there's also no
-autocompletion.
-
-Additionally, this library can be used as a go package, providing spoon
-functionallity and some low level scoop functionallity.
+* Drop-In replacement for `scoop search`
+  > Even faster than `scoop-search`!
+* Tab completion for command, flags and packages
 
 ## Manual Installation
 
@@ -78,8 +78,4 @@ as I deem it unnecessary. If you want to search the latest, simply run
 The search command allows plain output and JSON output. This allows use with
 tools such as `jq` or direct use in powershell via Powershells builtin
 `ConvertFrom-Json`.
-
-WIP:
-
-* Error handling and process exit codes
 
