@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -9,6 +10,8 @@ import (
 	"slices"
 	"strings"
 	"sync"
+
+	_ "runtime/pprof"
 
 	"github.com/Bios-Marcel/spoon/pkg/scoop"
 	"github.com/rodaine/table"
@@ -44,9 +47,7 @@ const (
 	SortFieldBucket = "bucket"
 )
 
-var (
-	allSearchFields = []string{SearchFieldName, SearchFieldBin, SearchFieldDescription}
-)
+var allSearchFields = []string{SearchFieldName, SearchFieldBin, SearchFieldDescription}
 
 func searchCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -84,7 +85,7 @@ func searchCmd() *cobra.Command {
 				fmt.Println(err)
 				return
 			} else {
-				slices.DeleteFunc(searchFields, func(s string) bool {
+				searchFields = slices.DeleteFunc(searchFields, func(s string) bool {
 					return slices.Contains(dontSearchFields, s)
 				})
 			}
@@ -93,68 +94,14 @@ func searchCmd() *cobra.Command {
 			searchBin := slices.Contains(searchFields, SearchFieldBin)
 			searchDescription := slices.Contains(searchFields, SearchFieldDescription)
 
-			queue := make(chan searchJob)
-			var wg sync.WaitGroup
-
-			syncQueue := make(chan match, searchWorkers)
-			doMatch := func(job searchJob, app scoop.App) {
-				syncQueue <- match{
-					Description: app.Description,
-					Version:     app.Version,
-					Bucket:      job.bucket,
-					Name:        app.Name,
-				}
-			}
-
-			detailFieldsToLoad := []string{
-				scoop.DetailFieldBin,
-				scoop.DetailFieldDescription,
-				scoop.DetailFieldVersion,
-			}
-			for i := 0; i < searchWorkers; i++ {
-				go func() {
-					for {
-						job := <-queue
-						func() {
-							// Prevent deadlocks
-							defer func() {
-								if err := recover(); err != nil {
-									wg.Done()
-								}
-							}()
-
-							if err := job.app.LoadDetails(detailFieldsToLoad...); err != nil {
-								fmt.Println("Error loading app metadata")
-								os.Exit(1)
-							}
-
-							app := job.app
-							if (searchName && contains(app.Name, search, caseInsensitive)) ||
-								(searchDescription && contains(app.Description, search, caseInsensitive)) {
-								doMatch(job, app)
-								return
-							}
-
-							if searchBin {
-								for _, bin := range app.Bin {
-									if contains(filepath.Base(bin), search, caseInsensitive) {
-										doMatch(job, app)
-										return
-									}
-								}
-							}
-
-							wg.Done()
-						}()
-					}
-				}()
-			}
-
 			buckets, err := scoop.GetLocalBuckets()
 			if err != nil {
 				fmt.Println("error getting buckets:", err)
 				os.Exit(1)
 			}
+
+			var manifestCount int
+			allApps := make([]searchJob, 0, 10000)
 			for _, bucket := range buckets {
 				apps, err := bucket.AvailableApps()
 				if err != nil {
@@ -162,26 +109,94 @@ func searchCmd() *cobra.Command {
 					os.Exit(1)
 				}
 
-				wg.Add(len(apps))
-				go func(bucketName string) {
-					for _, app := range apps {
-						queue <- searchJob{
-							app:    app,
-							bucket: bucketName,
-						}
-					}
-				}(bucket.Name())
+				manifestCount += len(apps)
+				bucketName := bucket.Name()
+				for _, app := range apps {
+					allApps = append(allApps, searchJob{
+						app:    app,
+						bucket: bucketName,
+					})
+				}
 			}
 
-			var matchList matches
-			go func() {
-				for {
-					matchList = append(matchList, <-syncQueue)
-					wg.Done()
-				}
-			}()
+			appQueue := make(chan searchJob, manifestCount)
 
-			wg.Wait()
+			detailFieldsToLoad := []string{
+				scoop.DetailFieldBin,
+				scoop.DetailFieldDescription,
+				scoop.DetailFieldVersion,
+			}
+
+			var workerWaitgroup sync.WaitGroup
+			workerWaitgroup.Add(searchWorkers)
+
+			var matchList matches
+			matchMutex := &sync.Mutex{}
+
+			for i := 0; i < searchWorkers; i++ {
+				go func() {
+					// Each goroutine uses a read buffer, this prevents race
+					// conditions, doesn't require locking and saves a lot of
+					// allocations.
+					// 128KiB buffer, as there are some hefty manifests.
+					// extras/nirlauncher is a whopping 120KiB.
+					buffer := bytes.NewBuffer(make([]byte, 1024*128))
+					localMatches := make(matches, 0, 50)
+				LOOP:
+					for {
+						select {
+						case job, open := <-appQueue:
+							if !open {
+								break LOOP
+							}
+
+							if err := job.app.LoadDetails(buffer, detailFieldsToLoad...); err != nil {
+								fmt.Println("Error loading app metadata:", err)
+								os.Exit(1)
+							}
+
+							app := job.app
+							if (searchName && contains(app.Name, search, caseInsensitive)) ||
+								(searchDescription && contains(app.Description, search, caseInsensitive)) {
+								localMatches = append(localMatches, match{
+									Description: app.Description,
+									Version:     app.Version,
+									Bucket:      job.bucket,
+									Name:        app.Name,
+								})
+								continue LOOP
+							}
+
+							if searchBin {
+								for _, bin := range app.Bin {
+									if contains(filepath.Base(bin), search, caseInsensitive) {
+										localMatches = append(localMatches, match{
+											Description: app.Description,
+											Version:     app.Version,
+											Bucket:      job.bucket,
+											Name:        app.Name,
+										})
+										continue LOOP
+									}
+								}
+							}
+						}
+					}
+
+					matchMutex.Lock()
+					defer matchMutex.Unlock()
+
+					matchList = append(matchList, localMatches...)
+					workerWaitgroup.Done()
+				}()
+			}
+
+			for _, app := range allApps {
+				appQueue <- app
+			}
+			close(appQueue)
+
+			workerWaitgroup.Wait()
 
 			sortFields, err := cmd.Flags().GetStringSlice("sort")
 			if err != nil {

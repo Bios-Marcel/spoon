@@ -1,6 +1,7 @@
 package scoop
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -45,6 +46,7 @@ func (b Bucket) ManifestDir() string {
 func (b Bucket) Remove() error {
 	return os.RemoveAll(b.Dir())
 }
+
 func GetApp(name string) (*App, error) {
 	app, err := GetAvailableApp(name)
 	if err != nil {
@@ -96,13 +98,22 @@ func (b Bucket) AvailableApps() ([]App, error) {
 		return nil, fmt.Errorf("error getting bucket entries: %w", err)
 	}
 
+	manifestDir := b.ManifestDir()
+	buffer := make([]byte, 0, 1024)
+
 	apps := make([]App, len(entries))
 	for index, entry := range entries {
 		name := entry.Name()
+
+		buffer = buffer[:len(manifestDir)+1+len(name)]
+		copy(buffer, manifestDir)
+		buffer[len(manifestDir)] = '/'
+		copy(buffer[len(manifestDir)+1:], name)
+
 		apps[index] = App{
 			// Cut off .json
 			Name:         name[:len(name)-5],
-			manifestPath: filepath.Join(b.ManifestDir(), name),
+			manifestPath: string(buffer),
 		}
 	}
 
@@ -178,7 +189,7 @@ const (
 // LoadDetails will load additional data regarding the manifest, such as
 // description and version information. This causes IO on your drive and
 // therefore isn't done by default.
-func (a *App) LoadDetails(fields ...string) error {
+func (a *App) LoadDetails(buffer *bytes.Buffer, fields ...string) error {
 	if a.loaded {
 		return nil
 	}
@@ -189,16 +200,18 @@ func (a *App) LoadDetails(fields ...string) error {
 	}
 	defer file.Close()
 
-	bytes, err := io.ReadAll(file)
+	buffer.Reset()
+	_, err = io.Copy(buffer, file)
 	if err != nil {
 		return fmt.Errorf("error reading app manifest: %w", err)
 	}
 
-	err = jsonparser.ObjectEach(bytes, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
+	err = jsonparser.ObjectEach(buffer.Bytes(), func(key []byte, value []byte, dataType jsonparser.ValueType, _ int) error {
 		field := string(key)
 		if !slices.Contains(fields, field) {
 			return nil
 		}
+
 		switch field {
 		case DetailFieldDescription:
 			a.Description = string(value)
