@@ -151,7 +151,7 @@ func searchCmd() *cobra.Command {
 						}
 
 						if err := job.app.LoadDetails(iter, detailFieldsToLoad...); err != nil {
-							fmt.Println("Error loading app metadata:", err)
+							fmt.Printf("Error loading details for '%s': %s\n", job.app.ManifestPath(), err)
 							os.Exit(1)
 						}
 

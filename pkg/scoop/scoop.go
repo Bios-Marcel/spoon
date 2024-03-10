@@ -192,7 +192,7 @@ func (a *App) LoadDetails(iter *jsoniter.Iterator, fields ...string) error {
 
 	file, err := os.Open(a.manifestPath)
 	if err != nil {
-		return fmt.Errorf("error opening app manifest: %w", err)
+		return fmt.Errorf("error opening manifest: %w", err)
 	}
 	defer file.Close()
 
@@ -200,7 +200,8 @@ func (a *App) LoadDetails(iter *jsoniter.Iterator, fields ...string) error {
 
 	for field := iter.ReadObject(); field != ""; field = iter.ReadObject() {
 		if !slices.Contains(fields, field) {
-			return nil
+			iter.Skip()
+			continue
 		}
 
 		switch field {
@@ -211,7 +212,14 @@ func (a *App) LoadDetails(iter *jsoniter.Iterator, fields ...string) error {
 		case DetailFieldBin:
 			if iter.WhatIsNext() == jsoniter.ArrayValue {
 				for iter.ReadArray() {
-					a.Bin = append(a.Bin, iter.ReadString())
+					// There are nested arrays, for shim creation, it seems.
+					if iter.WhatIsNext() == jsoniter.ArrayValue {
+						for iter.ReadArray() {
+							a.Bin = append(a.Bin, iter.ReadString())
+						}
+					} else {
+						a.Bin = append(a.Bin, iter.ReadString())
+					}
 				}
 			} else {
 				a.Bin = []string{iter.ReadString()}
@@ -224,7 +232,7 @@ func (a *App) LoadDetails(iter *jsoniter.Iterator, fields ...string) error {
 	}
 
 	if iter.Error != nil {
-		return fmt.Errorf("error parsing manifest: %w", iter.Error)
+		return fmt.Errorf("error parsing json: %w", iter.Error)
 	}
 
 	a.loaded = true
