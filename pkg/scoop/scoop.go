@@ -1,17 +1,15 @@
 package scoop
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
 
-	"github.com/buger/jsonparser"
+	jsoniter "github.com/json-iterator/go"
 )
 
 func getDirFilenames(dir string) ([]string, error) {
@@ -92,12 +90,12 @@ func GetInstalledApp(name string) (*App, error) {
 // [App.LoadDetails] on each one. This allows for optimisation by
 // parallelisation where desired.
 func (b Bucket) AvailableApps() ([]App, error) {
-	names, err := getDirFilenames(b.ManifestDir())
+	manifestDir := b.ManifestDir()
+	names, err := getDirFilenames(manifestDir)
 	if err != nil {
 		return nil, fmt.Errorf("error getting bucket entries: %w", err)
 	}
 
-	manifestDir := b.ManifestDir()
 	buffer := make([]byte, 0, 1024)
 
 	apps := make([]App, len(names))
@@ -187,7 +185,7 @@ const (
 // LoadDetails will load additional data regarding the manifest, such as
 // description and version information. This causes IO on your drive and
 // therefore isn't done by default.
-func (a *App) LoadDetails(buffer *bytes.Buffer, fields ...string) error {
+func (a *App) LoadDetails(iter *jsoniter.Iterator, fields ...string) error {
 	if a.loaded {
 		return nil
 	}
@@ -198,44 +196,35 @@ func (a *App) LoadDetails(buffer *bytes.Buffer, fields ...string) error {
 	}
 	defer file.Close()
 
-	buffer.Reset()
-	_, err = io.Copy(buffer, file)
-	if err != nil {
-		return fmt.Errorf("error reading app manifest: %w", err)
-	}
+	iter.Reset(file)
 
-	err = jsonparser.ObjectEach(buffer.Bytes(), func(key []byte, value []byte, dataType jsonparser.ValueType, _ int) error {
-		field := string(key)
+	for field := iter.ReadObject(); field != ""; field = iter.ReadObject() {
 		if !slices.Contains(fields, field) {
 			return nil
 		}
 
 		switch field {
 		case DetailFieldDescription:
-			a.Description = string(value)
+			a.Description = iter.ReadString()
 		case DetailFieldVersion:
-			a.Version = string(value)
+			a.Version = iter.ReadString()
 		case DetailFieldBin:
-			if dataType == jsonparser.String {
-				a.Bin = []string{string(value)}
-			} else if dataType == jsonparser.Array {
-				_, err := jsonparser.ArrayEach(value, func(value []byte, _ jsonparser.ValueType, _ int, err error) {
-					if err != nil {
-						return
-					}
-					a.Bin = append(a.Bin, string(value))
-				})
-				if err != nil {
-					return fmt.Errorf("error parsing bin array: %w", err)
+			if iter.WhatIsNext() == jsoniter.ArrayValue {
+				for iter.ReadArray() {
+					a.Bin = append(a.Bin, iter.ReadString())
 				}
+			} else {
+				a.Bin = []string{iter.ReadString()}
 			}
 		case DetailFieldNotes:
-			a.Notes = string(value)
+			a.Notes = iter.ReadString()
+		default:
+			iter.Skip()
 		}
-		return nil
-	})
-	if err != nil {
-		return fmt.Errorf("error parsing app manifest: %w", err)
+	}
+
+	if iter.Error != nil {
+		return fmt.Errorf("error parsing manifest: %w", iter.Error)
 	}
 
 	a.loaded = true

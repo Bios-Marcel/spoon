@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -14,6 +13,7 @@ import (
 	_ "runtime/pprof"
 
 	"github.com/Bios-Marcel/spoon/pkg/scoop"
+	jsoniter "github.com/json-iterator/go"
 	"github.com/rodaine/table"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
@@ -141,44 +141,42 @@ func searchCmd() *cobra.Command {
 					// allocations.
 					// 128KiB buffer, as there are some hefty manifests.
 					// extras/nirlauncher is a whopping 120KiB.
-					buffer := bytes.NewBuffer(make([]byte, 1024*128))
+					iter := jsoniter.Parse(jsoniter.ConfigFastest, nil, 1024*128)
 					localMatches := make(matches, 0, 50)
 				LOOP:
 					for {
-						select {
-						case job, open := <-appQueue:
-							if !open {
-								break LOOP
-							}
+						job, open := <-appQueue
+						if !open {
+							break LOOP
+						}
 
-							if err := job.app.LoadDetails(buffer, detailFieldsToLoad...); err != nil {
-								fmt.Println("Error loading app metadata:", err)
-								os.Exit(1)
-							}
+						if err := job.app.LoadDetails(iter, detailFieldsToLoad...); err != nil {
+							fmt.Println("Error loading app metadata:", err)
+							os.Exit(1)
+						}
 
-							app := job.app
-							if (searchName && contains(app.Name, search, caseInsensitive)) ||
-								(searchDescription && contains(app.Description, search, caseInsensitive)) {
-								localMatches = append(localMatches, match{
-									Description: app.Description,
-									Version:     app.Version,
-									Bucket:      job.bucket,
-									Name:        app.Name,
-								})
-								continue LOOP
-							}
+						app := job.app
+						if (searchName && contains(app.Name, search, caseInsensitive)) ||
+							(searchDescription && contains(app.Description, search, caseInsensitive)) {
+							localMatches = append(localMatches, match{
+								Description: app.Description,
+								Version:     app.Version,
+								Bucket:      job.bucket,
+								Name:        app.Name,
+							})
+							continue LOOP
+						}
 
-							if searchBin {
-								for _, bin := range app.Bin {
-									if contains(filepath.Base(bin), search, caseInsensitive) {
-										localMatches = append(localMatches, match{
-											Description: app.Description,
-											Version:     app.Version,
-											Bucket:      job.bucket,
-											Name:        app.Name,
-										})
-										continue LOOP
-									}
+						if searchBin {
+							for _, bin := range app.Bin {
+								if contains(filepath.Base(bin), search, caseInsensitive) {
+									localMatches = append(localMatches, match{
+										Description: app.Description,
+										Version:     app.Version,
+										Bucket:      job.bucket,
+										Name:        app.Name,
+									})
+									continue LOOP
 								}
 							}
 						}
