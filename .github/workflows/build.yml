@@ -1,0 +1,34 @@
+name: build
+
+on:
+  push:
+    tags: [v**]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.22.x
+
+      - name: Run tests
+        shell: bash
+        run: |
+          go test -v -race -covermode=atomic ./...
+
+      - name: Build artifact
+        shell: bash
+        run: |
+          go build -trimpath -ldflags "-w -s" -o spoon.exe ./cmd/spoon
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: spoon.exe
+          path: spoon.exe
+
