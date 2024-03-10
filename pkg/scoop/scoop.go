@@ -149,14 +149,21 @@ func GetLocalBuckets() ([]Bucket, error) {
 		return nil, fmt.Errorf("error getting home directory: %w", err)
 	}
 
-	bucketPaths, err := filepath.Glob(filepath.Join(home, "scoop/buckets/*"))
+	bucketsPath := filepath.Join(home, "scoop/buckets")
+	bucketsDir, err := os.Open(bucketsPath)
 	if err != nil {
-		return nil, fmt.Errorf("error globbing buckets: %w", err)
+		return nil, fmt.Errorf("error reading buckets dir: %w", err)
+	}
+	defer bucketsDir.Close()
+
+	bucketPaths, err := bucketsDir.Readdirnames(-1)
+	if err != nil {
+		return nil, fmt.Errorf("error reaeding bucket names: %w", err)
 	}
 
 	buckets := make([]Bucket, len(bucketPaths))
 	for index, bucketPath := range bucketPaths {
-		buckets[index] = Bucket(bucketPath)
+		buckets[index] = Bucket(filepath.Join(bucketsPath, bucketPath))
 	}
 	return buckets, nil
 }
