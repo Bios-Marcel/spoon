@@ -16,6 +16,7 @@ import (
 	"github.com/Bios-Marcel/spoon/pkg/scoop"
 	"github.com/rodaine/table"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 type matches []match
@@ -249,12 +250,38 @@ func searchCmd() *cobra.Command {
 			case "plain":
 				sort()
 
-				tbl := table.New("Name", "Version", "Bucket", "Description")
+				terminalWidth, _, err := term.GetSize(int(os.Stdout.Fd()))
+				// Not really important, if we cant get the size, we'll render fixed
+				// width.
+				if err != nil {
+					// Random value that I assume might work well.
+					terminalWidth = 130
+				}
 
+				padding := 2
+				tbl := table.
+					New("Name", "Version", "Bucket", "Description").
+					WithPadding(padding)
+
+				// We'll precalculcate the size and assume ASCII mostly. If UTF-8
+				// is present, it'll cause premature truncation, but that's not a
+				// big issue. We only truncate the description though.
+
+				var maxNameLen, maxVersionLen, maxBucketLen int
+				for _, match := range matchList {
+					maxNameLen = max(maxNameLen, len(match.Name))
+					// FIXME An optimised version could truncate the middle of
+					// long version numbers, since the end and the beginning
+					// will most likely matter most.
+					maxVersionLen = max(maxVersionLen, len(match.Version))
+					maxBucketLen = max(maxBucketLen, len(match.Bucket))
+				}
+
+				descriptionWidth := max(10, terminalWidth-maxNameLen-maxBucketLen-maxVersionLen-(padding*4))
 				for _, match := range matchList {
 					desc := match.Description
-					if len(desc) > 50 {
-						desc = desc[:47] + "..."
+					if len(desc) > descriptionWidth {
+						desc = desc[:descriptionWidth-3] + "..."
 					}
 					tbl.AddRow(match.Name, match.Version, match.Bucket, desc)
 				}

@@ -7,6 +7,7 @@ require (
 	github.com/iamacarpet/go-win64api v0.0.0-20230324134531-ef6dbdd6db97
 	github.com/rodaine/table v1.1.0
 	github.com/spf13/cobra v1.7.0
+	golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1
 )
 
 require (
