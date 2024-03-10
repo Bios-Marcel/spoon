@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -15,12 +14,12 @@ import (
 	"github.com/buger/jsonparser"
 )
 
-func getDirEntries(dir string) ([]fs.FileInfo, error) {
+func getDirFilenames(dir string) ([]string, error) {
 	dirHandle, err := os.Open(dir)
 	if err != nil {
 		return nil, err
 	}
-	return dirHandle.Readdir(-1)
+	return dirHandle.Readdirnames(-1)
 }
 
 type Bucket string
@@ -93,7 +92,7 @@ func GetInstalledApp(name string) (*App, error) {
 // [App.LoadDetails] on each one. This allows for optimisation by
 // parallelisation where desired.
 func (b Bucket) AvailableApps() ([]App, error) {
-	entries, err := getDirEntries(b.ManifestDir())
+	names, err := getDirFilenames(b.ManifestDir())
 	if err != nil {
 		return nil, fmt.Errorf("error getting bucket entries: %w", err)
 	}
@@ -101,10 +100,8 @@ func (b Bucket) AvailableApps() ([]App, error) {
 	manifestDir := b.ManifestDir()
 	buffer := make([]byte, 0, 1024)
 
-	apps := make([]App, len(entries))
-	for index, entry := range entries {
-		name := entry.Name()
-
+	apps := make([]App, len(names))
+	for index, name := range names {
 		buffer = buffer[:len(manifestDir)+1+len(name)]
 		copy(buffer, manifestDir)
 		buffer[len(manifestDir)] = '/'
@@ -150,13 +147,7 @@ func GetLocalBuckets() ([]Bucket, error) {
 	}
 
 	bucketsPath := filepath.Join(home, "scoop/buckets")
-	bucketsDir, err := os.Open(bucketsPath)
-	if err != nil {
-		return nil, fmt.Errorf("error reading buckets dir: %w", err)
-	}
-	defer bucketsDir.Close()
-
-	bucketPaths, err := bucketsDir.Readdirnames(-1)
+	bucketPaths, err := getDirFilenames(bucketsPath)
 	if err != nil {
 		return nil, fmt.Errorf("error reaeding bucket names: %w", err)
 	}
