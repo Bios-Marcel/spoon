@@ -151,29 +151,24 @@ func searchCmd() *cobra.Command {
 						}
 
 						app := job.app
-						if (searchName && contains(app.Name, search, caseInsensitive)) ||
-							(searchDescription && contains(app.Description, search, caseInsensitive)) {
-							localMatches = append(localMatches, match{
-								Description: app.Description,
-								Version:     app.Version,
-								Bucket:      job.bucket,
-								Name:        app.Name,
-							})
+						if searchName && contains(app.Name, search, caseInsensitive) {
+							localMatches = append(localMatches, newMatch(app, job.bucket))
 							continue LOOP
 						}
 
 						if searchBin {
 							for _, bin := range app.Bin {
-								if contains(filepath.Base(bin), search, caseInsensitive) {
-									localMatches = append(localMatches, match{
-										Description: app.Description,
-										Version:     app.Version,
-										Bucket:      job.bucket,
-										Name:        app.Name,
-									})
+								if contains(filepath.Base(bin.Name), search, caseInsensitive) ||
+									contains(filepath.Base(bin.Alias), search, caseInsensitive) {
+									localMatches = append(localMatches, newMatch(app, job.bucket))
 									continue LOOP
 								}
 							}
+						}
+
+						if searchDescription && contains(app.Description, search, caseInsensitive) {
+							localMatches = append(localMatches, newMatch(app, job.bucket))
+							continue LOOP
 						}
 					}
 
@@ -296,6 +291,15 @@ func searchCmd() *cobra.Command {
 	cmd.MarkFlagsMutuallyExclusive("fields", "not-fields")
 
 	return cmd
+}
+
+func newMatch(app scoop.App, bucket string) match {
+	return match{
+		Description: app.Description,
+		Version:     app.Version,
+		Bucket:      bucket,
+		Name:        app.Name,
+	}
 }
 
 // autocompleteSearchFieldFlag will autocomplete single search fields. This does

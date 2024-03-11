@@ -167,8 +167,14 @@ type App struct {
 	Version      string `json:"version"`
 	Notes        string `json:"notes"`
 	manifestPath string
-	Bin          []string `json:"bin"`
+	Bin          []Bin `json:"bin"`
 	loaded       bool
+}
+
+type Bin struct {
+	Name  string
+	Alias string
+	Args  []string
 }
 
 func (a App) ManifestPath() string {
@@ -210,19 +216,31 @@ func (a *App) LoadDetails(iter *jsoniter.Iterator, fields ...string) error {
 		case DetailFieldVersion:
 			a.Version = iter.ReadString()
 		case DetailFieldBin:
+			// Array at top level to create multiple entries
 			if iter.WhatIsNext() == jsoniter.ArrayValue {
 				for iter.ReadArray() {
-					// There are nested arrays, for shim creation, it seems.
+					// There are nested arrays, for shim creation, with format:
+					// binary alias [args...]
 					if iter.WhatIsNext() == jsoniter.ArrayValue {
-						for iter.ReadArray() {
-							a.Bin = append(a.Bin, iter.ReadString())
+						var bin Bin
+						if iter.ReadArray() {
+							bin.Name = iter.ReadString()
 						}
+						if iter.ReadArray() {
+							bin.Alias = iter.ReadString()
+						}
+						for iter.ReadArray() {
+							bin.Args = append(bin.Args, iter.ReadString())
+						}
+						a.Bin = append(a.Bin, bin)
 					} else {
-						a.Bin = append(a.Bin, iter.ReadString())
+						// String in the root level array to add to path
+						a.Bin = append(a.Bin, Bin{Name: iter.ReadString()})
 					}
 				}
 			} else {
-				a.Bin = []string{iter.ReadString()}
+				// String vaue at root level to add to path.
+				a.Bin = []Bin{{Name: iter.ReadString()}}
 			}
 		case DetailFieldNotes:
 			a.Notes = iter.ReadString()
