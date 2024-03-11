@@ -243,7 +243,15 @@ func (a *App) LoadDetails(iter *jsoniter.Iterator, fields ...string) error {
 				a.Bin = []Bin{{Name: iter.ReadString()}}
 			}
 		case DetailFieldNotes:
-			a.Notes = iter.ReadString()
+			if iter.WhatIsNext() == jsoniter.ArrayValue {
+				var lines []string
+				for iter.ReadArray() {
+					lines = append(lines, iter.ReadString())
+				}
+				a.Notes = strings.Join(lines, "\n")
+			} else {
+				a.Notes = iter.ReadString()
+			}
 		default:
 			iter.Skip()
 		}
