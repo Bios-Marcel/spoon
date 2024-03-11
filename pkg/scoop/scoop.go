@@ -33,7 +33,7 @@ func (b Bucket) Dir() string {
 	return string(b)
 }
 
-// ManifestDir is the directory path of the bucket.
+// ManifestDir is the directory path of the bucket without a leading slash.
 func (b Bucket) ManifestDir() string {
 	return filepath.Join(string(b), "bucket")
 }
@@ -96,19 +96,12 @@ func (b Bucket) AvailableApps() ([]App, error) {
 		return nil, fmt.Errorf("error getting bucket entries: %w", err)
 	}
 
-	buffer := make([]byte, 0, 1024)
-
 	apps := make([]App, len(names))
 	for index, name := range names {
-		buffer = buffer[:len(manifestDir)+1+len(name)]
-		copy(buffer, manifestDir)
-		buffer[len(manifestDir)] = '/'
-		copy(buffer[len(manifestDir)+1:], name)
-
 		apps[index] = App{
 			// Cut off .json
 			Name:         name[:len(name)-5],
-			manifestPath: string(buffer),
+			manifestPath: manifestDir + "\\" + name,
 		}
 	}
 
@@ -168,7 +161,6 @@ type App struct {
 	Notes        string `json:"notes"`
 	manifestPath string
 	Bin          []Bin `json:"bin"`
-	loaded       bool
 }
 
 type Bin struct {
@@ -192,10 +184,6 @@ const (
 // description and version information. This causes IO on your drive and
 // therefore isn't done by default.
 func (a *App) LoadDetails(iter *jsoniter.Iterator, fields ...string) error {
-	if a.loaded {
-		return nil
-	}
-
 	file, err := os.Open(a.manifestPath)
 	if err != nil {
 		return fmt.Errorf("error opening manifest: %w", err)
@@ -261,7 +249,6 @@ func (a *App) LoadDetails(iter *jsoniter.Iterator, fields ...string) error {
 		return fmt.Errorf("error parsing json: %w", iter.Error)
 	}
 
-	a.loaded = true
 	return nil
 }
 

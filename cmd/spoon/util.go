@@ -43,15 +43,14 @@ func getFlags(cmd *cobra.Command, flags ...string) ([]string, error) {
 // equals checks whether `whole` contains substring `find`, optionally ignoring
 // casing. The value `find` is expected to be lowered already, if `ci` has been
 // set.
-func contains(whole, find string, ci bool) bool {
-	if ci {
-		// FIXME Depending on casing rules, this might not hold true.
-		if len(find) > len(whole) {
-			return false
-		}
-
-		return strings.Contains(strings.ToLower(whole), find)
+func contains(haystack, needle string, caseInsensitive bool) bool {
+	if len(needle) > len(haystack) {
+		return false
 	}
 
-	return strings.Contains(whole, find)
+	if caseInsensitive {
+		return strings.Contains(strings.ToLower(haystack), needle)
+	}
+
+	return strings.Contains(haystack, needle)
 }
