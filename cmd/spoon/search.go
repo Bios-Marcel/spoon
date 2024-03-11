@@ -144,12 +144,7 @@ func searchCmd() *cobra.Command {
 					iter := jsoniter.Parse(jsoniter.ConfigFastest, nil, 1024*128)
 					localMatches := make(matches, 0, 50)
 				LOOP:
-					for {
-						job, open := <-appQueue
-						if !open {
-							break LOOP
-						}
-
+					for job := range appQueue {
 						if err := job.app.LoadDetails(iter, detailFieldsToLoad...); err != nil {
 							fmt.Printf("Error loading details for '%s': %s\n", job.app.ManifestPath(), err)
 							os.Exit(1)
