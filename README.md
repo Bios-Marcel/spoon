@@ -48,13 +48,13 @@ All unknown commands are delegated to scoop by default.
 | cat        | Native              | ✅            | * Alias `manifest`                                                       |
 | status     | Wrapper             | ✅            |                                                                          |
 | info       | Wrapper             | ✅            |                                                                          |
+| depends    | Native (WIP)        | ✅            | * Adds `--reverse/-r` flag<br/>* Prints an ASCII tree by default         |
 | list       |                     |              |                                                                          |
 | hold       |                     |              |                                                                          |
 | unhold     |                     |              |                                                                          |
 | reset      |                     |              |                                                                          |
 | cleanup    |                     |              |                                                                          |
 | create     |                     |              |                                                                          |
-| depends    |                     |              |                                                                          |
 | shim       |                     |              |                                                                          |
 | which      |                     |              |                                                                          |
 | config     |                     |              |                                                                          |

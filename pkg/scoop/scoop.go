@@ -89,16 +89,16 @@ func GetInstalledApp(name string) (*App, error) {
 // AvailableApps returns unloaded app manifests. You need to call
 // [App.LoadDetails] on each one. This allows for optimisation by
 // parallelisation where desired.
-func (b Bucket) AvailableApps() ([]App, error) {
+func (b Bucket) AvailableApps() ([]*App, error) {
 	manifestDir := b.ManifestDir()
 	names, err := getDirFilenames(manifestDir)
 	if err != nil {
 		return nil, fmt.Errorf("error getting bucket entries: %w", err)
 	}
 
-	apps := make([]App, len(names))
+	apps := make([]*App, len(names))
 	for index, name := range names {
-		apps[index] = App{
+		apps[index] = &App{
 			// Cut off .json
 			Name:         name[:len(name)-5],
 			manifestPath: manifestDir + "\\" + name,
@@ -160,7 +160,13 @@ type App struct {
 	Version      string `json:"version"`
 	Notes        string `json:"notes"`
 	manifestPath string
-	Bin          []Bin `json:"bin"`
+	Bin          []Bin        `json:"bin"`
+	Depends      []Dependency `json:"depends"`
+}
+
+type Dependency struct {
+	Bucket string
+	Name   string
 }
 
 type Bin struct {
@@ -173,17 +179,30 @@ func (a App) ManifestPath() string {
 	return a.manifestPath
 }
 
+func (a App) Bucket() string {
+	return filepath.Base(filepath.Dir(a.manifestPath))
+}
+
 const (
 	DetailFieldBin         = "bin"
 	DetailFieldDescription = "description"
 	DetailFieldVersion     = "version"
 	DetailFieldNotes       = "notes"
+	DetailFieldDepends     = "depends"
 )
 
 // LoadDetails will load additional data regarding the manifest, such as
 // description and version information. This causes IO on your drive and
 // therefore isn't done by default.
-func (a *App) LoadDetails(iter *jsoniter.Iterator, fields ...string) error {
+func (a *App) LoadDetails(fields ...string) error {
+	iter := jsoniter.Parse(jsoniter.ConfigFastest, nil, 1024*128)
+	return a.LoadDetailsWithIter(iter, fields...)
+}
+
+// LoadDetails will load additional data regarding the manifest, such as
+// description and version information. This causes IO on your drive and
+// therefore isn't done by default.
+func (a *App) LoadDetailsWithIter(iter *jsoniter.Iterator, fields ...string) error {
 	file, err := os.Open(a.manifestPath)
 	if err != nil {
 		return fmt.Errorf("error opening manifest: %w", err)
@@ -230,6 +249,16 @@ func (a *App) LoadDetails(iter *jsoniter.Iterator, fields ...string) error {
 				// String vaue at root level to add to path.
 				a.Bin = []Bin{{Name: iter.ReadString()}}
 			}
+		case DetailFieldDepends:
+			// Array at top level to create multiple entries
+			if iter.WhatIsNext() == jsoniter.ArrayValue {
+				for iter.ReadArray() {
+					a.Depends = append(a.Depends, a.parseDependency(iter.ReadString()))
+				}
+			} else {
+				// String vaue at root level to add to path.
+				a.Depends = []Dependency{a.parseDependency(iter.ReadString())}
+			}
 		case DetailFieldNotes:
 			if iter.WhatIsNext() == jsoniter.ArrayValue {
 				var lines []string
@@ -250,6 +279,68 @@ func (a *App) LoadDetails(iter *jsoniter.Iterator, fields ...string) error {
 	}
 
 	return nil
+}
+
+func (a App) parseDependency(value string) Dependency {
+	parts := strings.SplitN(value, "/", 1)
+	switch len(parts) {
+	case 0:
+		// Should be a broken manifest
+		return Dependency{}
+	case 1:
+		// No bucket means same bucket.
+		return Dependency{Bucket: a.Bucket(), Name: parts[0]}
+	default:
+		return Dependency{Bucket: parts[0], Name: parts[1]}
+	}
+}
+
+type Dependencies struct {
+	App    *App
+	Values []*Dependencies
+}
+
+func getAppFromBucket(bucket, app string) (*App, error) {
+	bucketDir, err := GetScoopBucketDir()
+	if err != nil {
+		return nil, fmt.Errorf("error getting bucket dir: %w", err)
+	}
+
+	return &App{
+		Name:         app,
+		manifestPath: filepath.Join(bucketDir, bucket, "bucket", app+".json"),
+	}, nil
+}
+
+func (a App) DependencyTree() (*Dependencies, error) {
+	dependencies := Dependencies{App: &a}
+	for _, dependency := range a.Depends {
+		dependencyApp, err := getAppFromBucket(dependency.Bucket, dependency.Name)
+		if err != nil {
+			return nil, fmt.Errorf("error getting info about dependency: %w", err)
+		}
+
+		subTree, err := dependencyApp.DependencyTree()
+		if err != nil {
+			return nil, fmt.Errorf("error getting sub dependency tree: %w", err)
+		}
+		dependencies.Values = append(dependencies.Values, subTree)
+	}
+	return &dependencies, nil
+}
+
+func (a App) ReverseDependencyTree(apps []*App) *Dependencies {
+	dependencies := Dependencies{App: &a}
+	for _, app := range apps {
+		for _, dep := range app.Depends {
+			if dep.Name == a.Name {
+				subTree := app.ReverseDependencyTree(apps)
+				dependencies.Values = append(dependencies.Values, subTree)
+			}
+			break
+		}
+	}
+	return &dependencies
 }
 
 func GetInstalledApps() ([]App, error) {

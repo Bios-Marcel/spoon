@@ -28,7 +28,7 @@ type match struct {
 
 type searchJob struct {
 	bucket string
-	app    scoop.App
+	app    *scoop.App
 }
 
 type SearchField string
@@ -194,7 +194,7 @@ func workSearchJobs(
 	matches := make([]match, 0, 50)
 LOOP:
 	for job := range queue {
-		if err := job.app.LoadDetails(
+		if err := job.app.LoadDetailsWithIter(
 			iter,
 			scoop.DetailFieldBin,
 			scoop.DetailFieldDescription,
@@ -295,7 +295,7 @@ func sort(matches []match, sortFields []string) {
 	}
 }
 
-func newMatch(app scoop.App, bucket string) match {
+func newMatch(app *scoop.App, bucket string) match {
 	return match{
 		Description: app.Description,
 		Version:     app.Version,
