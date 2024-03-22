@@ -404,9 +404,26 @@ func GetScoopDir() (string, error) {
 	return filepath.Join(home, "scoop"), nil
 }
 
-// cachePathRegex applies the same rules to the name components as scoop does.
+// LookupCache will check the cache dir for matching entries. Note that the
+// `app` parameter must be non-empty, but the version is optional.
+func LookupCache(app, version string) ([]string, error) {
+	cacheDir, err := GetCacheDir()
+	if err != nil {
+		return nil, fmt.Errorf("error getting cache dir: %w", err)
+	}
+
+	expectedPrefix := cachePathRegex.ReplaceAllString(app, "_")
+	if version != "" {
+		expectedPrefix += "#" + cachePathRegex.ReplaceAllString(version, "_")
+	}
+
+	return filepath.Glob(filepath.Join(cacheDir, expectedPrefix+"*"))
+}
+
 var cachePathRegex = regexp.MustCompile(`[^\w\.\-]+`)
 
+// CachePath generates a path given the app, a version and the target URL. The
+// rules defined here are taken from the scoop code.
 func CachePath(app, version, url string) string {
 	parts := []string{app, version, url}
 	for i, part := range parts {
