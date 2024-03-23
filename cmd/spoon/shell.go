@@ -110,6 +110,7 @@ func createJunction(from, to string) error {
 func GetUserPath() (string, error) {
 	cmd := exec.Command(
 		"powershell",
+		"-NoProfile",
 		"[Environment]::GetEnvironmentVariable('PATH', 'User')",
 	)
 	pipe, err := cmd.StdoutPipe()
@@ -137,6 +138,7 @@ func GetUserPath() (string, error) {
 func PersistUserPath(value string) error {
 	pathRestoreCmd := exec.Command(
 		"powershell",
+		"-NoProfile",
 		"-Command",
 		"[Environment]::SetEnvironmentVariable('PATH','"+value+"','User')",
 	)
@@ -214,7 +216,6 @@ func shellCmd() *cobra.Command {
 				TODO:
 
 				Support for different shells (pwsh / powershell / batch / bash / wsl?)
-				Support for custom powershell profiles
 				Proper support for subshelling
 			*/
 
