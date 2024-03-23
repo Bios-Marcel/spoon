@@ -45,6 +45,22 @@ func (b Bucket) Remove() error {
 }
 
 func GetAvailableApp(name string) (*App, error) {
+	var bucket string
+	if bucketSeparator := strings.IndexByte(name, '/'); bucketSeparator != -1 {
+		bucket = name[:bucketSeparator]
+		name = name[bucketSeparator+1:]
+	}
+
+	versionSeparator := strings.LastIndexByte(name, '@')
+	if versionSeparator != -1 {
+		// We don't use the version right now, so we'll just cut it off.
+		name = name[:versionSeparator]
+	}
+
+	if bucket != "" {
+		return getAppFromBucket(bucket, name)
+	}
+
 	buckets, err := GetLocalBuckets()
 	if err != nil {
 		return nil, fmt.Errorf("error getting local buckets: %w", err)
