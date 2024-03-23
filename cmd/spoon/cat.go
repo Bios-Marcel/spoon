@@ -22,7 +22,7 @@ func catCmd() *cobra.Command {
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: autocompleteAvailable,
 		Run: func(cmd *cobra.Command, args []string) {
-			app, err := scoop.GetApp(args[0])
+			app, err := scoop.GetAvailableApp(args[0])
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)

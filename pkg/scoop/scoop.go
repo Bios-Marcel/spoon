@@ -44,17 +44,6 @@ func (b Bucket) Remove() error {
 	return os.RemoveAll(b.Dir())
 }
 
-func GetApp(name string) (*App, error) {
-	app, err := GetAvailableApp(name)
-	if err != nil {
-		return nil, fmt.Errorf("error getting installed app: %w", err)
-	}
-	if app != nil {
-		return app, nil
-	}
-	return GetInstalledApp(name)
-}
-
 func GetAvailableApp(name string) (*App, error) {
 	buckets, err := GetLocalBuckets()
 	if err != nil {
