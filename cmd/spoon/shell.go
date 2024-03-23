@@ -241,30 +241,34 @@ func shellCmd() *cobra.Command {
 				fmt.Println("error linking buckets:", err)
 				os.Exit(1)
 			}
-			scoopInstallCmd := exec.Command(
-				shell,
-				append(
-					[]string{
-						"-NoProfile",
-						"-Command",
-						"scoop",
-						"install",
-					},
-					args...,
-				)...,
-			)
-			scoopInstallCmd.Env = env
-			scoopInstallCmd.Stdout = os.Stdout
-			scoopInstallCmd.Stderr = os.Stderr
-			scoopInstallCmd.Stdin = os.Stdin
 
-			if err := scoopInstallCmd.Run(); err != nil {
-				// Since we don't know whether the PATH was manipulated even on
-				// an unsuccessful install, we still need to restore it.
-				PersistUserPath(oldUserPath)
+			// Scoop has a bug, where running something such as
+			// `scoop install lua golangci-lint@v1.56.2` causes an issue. It
+			// seems scoop doesn't parse the arguments properly. Therefore we
+			// need to execute the command multiple times.
+			for _, dependency := range args {
+				scoopInstallCmd := exec.Command(
+					shell,
+					"-NoProfile",
+					"-Command",
+					"scoop",
+					"install",
+					dependency,
+				)
+				scoopInstallCmd.Env = env
 
-				fmt.Println("error installing:", err)
-				os.Exit(1)
+				scoopInstallCmd.Stdout = os.Stdout
+				scoopInstallCmd.Stderr = os.Stderr
+				scoopInstallCmd.Stdin = os.Stdin
+
+				if err := scoopInstallCmd.Run(); err != nil {
+					// Since we don't know whether the PATH was manipulated even on
+					// an unsuccessful install, we still need to restore it.
+					PersistUserPath(oldUserPath)
+
+					fmt.Println("error installing:", err)
+					os.Exit(1)
+				}
 			}
 
 			// Scoop forcibly adds the shim dir to the path in a persistent
