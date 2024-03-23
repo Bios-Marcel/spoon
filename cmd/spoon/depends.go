@@ -23,7 +23,12 @@ func dependsCmd() *cobra.Command {
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: autocompleteAvailable,
 		Run: func(cmd *cobra.Command, args []string) {
-			app, err := scoop.GetAvailableApp(args[0])
+			defaultScoop, err := scoop.NewScoop()
+			if err != nil {
+				fmt.Println("error getting default scoop:", err)
+				os.Exit(1)
+			}
+			app, err := defaultScoop.GetAvailableApp(args[0])
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
@@ -44,7 +49,7 @@ func dependsCmd() *cobra.Command {
 			// 4. Speed up
 
 			if reverse {
-				buckets, err := scoop.GetLocalBuckets()
+				buckets, err := defaultScoop.GetLocalBuckets()
 				if err != nil {
 					fmt.Println(err)
 					os.Exit(1)
@@ -68,10 +73,10 @@ func dependsCmd() *cobra.Command {
 					apps = append(apps, bucketApps...)
 				}
 
-				tree := app.ReverseDependencyTree(apps)
+				tree := defaultScoop.ReverseDependencyTree(apps, app)
 				printDeps(0, tree)
 			} else {
-				tree, err := app.DependencyTree()
+				tree, err := defaultScoop.DependencyTree(app)
 				if err != nil {
 					fmt.Println(err)
 					os.Exit(1)

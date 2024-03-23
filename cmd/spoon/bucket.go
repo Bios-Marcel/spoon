@@ -39,7 +39,12 @@ This command accepts one or two arguments. Either a known bucket (see spoon buck
 					return nil, cobra.ShellCompDirectiveNoFileComp
 				}
 
-				knownBuckets, err := getKnownBucketsFlat()
+				defaultScoop, err := scoop.NewScoop()
+				if err != nil {
+					return nil, cobra.ShellCompDirectiveNoFileComp
+				}
+
+				knownBuckets, err := getKnownBucketsFlat(defaultScoop)
 				if err != nil {
 					return nil, cobra.ShellCompDirectiveDefault
 				}
@@ -64,7 +69,11 @@ This command accepts one or two arguments. Either a known bucket (see spoon buck
 			),
 			Args: cobra.MinimumNArgs(1),
 			ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-				buckets, err := scoop.GetLocalBuckets()
+				defaultScoop, err := scoop.NewScoop()
+				if err != nil {
+					return nil, cobra.ShellCompDirectiveNoFileComp
+				}
+				buckets, err := defaultScoop.GetLocalBuckets()
 				if err != nil {
 					return nil, cobra.ShellCompDirectiveNoFileComp
 				}
@@ -83,7 +92,12 @@ This command accepts one or two arguments. Either a known bucket (see spoon buck
 				return bucketNames, cobra.ShellCompDirectiveDefault
 			},
 			Run: func(cmd *cobra.Command, args []string) {
-				buckets, err := scoop.GetLocalBuckets()
+				defaultScoop, err := scoop.NewScoop()
+				if err != nil {
+					fmt.Println("error getting default scoop:", err)
+					os.Exit(1)
+				}
+				buckets, err := defaultScoop.GetLocalBuckets()
 				if err != nil {
 					fmt.Println(err)
 					os.Exit(1)
@@ -127,7 +141,13 @@ This command accepts one or two arguments. Either a known bucket (see spoon buck
 		Use:   "known",
 		Short: "Lists all known buckets",
 		Run: func(cmd *cobra.Command, args []string) {
-			knownBuckets, err := getKnownBucketsFlat()
+			defaultScoop, err := scoop.NewScoop()
+			if err != nil {
+				fmt.Println("error getting default scoop:", err)
+				os.Exit(1)
+			}
+
+			knownBuckets, err := getKnownBucketsFlat(defaultScoop)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
@@ -158,7 +178,7 @@ This command accepts one or two arguments. Either a known bucket (see spoon buck
 	return bucketRoot
 }
 
-func getKnownBucketsFlat() ([]string, error) {
+func getKnownBucketsFlat(scoop *scoop.Scoop) ([]string, error) {
 	knownBuckets, err := scoop.GetKnownBuckets()
 	if err != nil {
 		return nil, fmt.Errorf("error getting known buckets: %w", err)

@@ -22,7 +22,12 @@ func catCmd() *cobra.Command {
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: autocompleteAvailable,
 		Run: func(cmd *cobra.Command, args []string) {
-			app, err := scoop.GetAvailableApp(args[0])
+			defaultScoop, err := scoop.NewScoop()
+			if err != nil {
+				fmt.Println("error getting default scoop:", err)
+				os.Exit(1)
+			}
+			app, err := defaultScoop.GetAvailableApp(args[0])
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)

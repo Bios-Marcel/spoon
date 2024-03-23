@@ -44,24 +44,32 @@ func (b Bucket) Remove() error {
 	return os.RemoveAll(b.Dir())
 }
 
-func GetAvailableApp(name string) (*App, error) {
+// ParseAppIdentifier returns all fragments of an app. The fragments are (in
+// order) (bucket, name, version). Not that `bucket` and `version` can be empty.
+func ParseAppIdentifier(name string) (string, string, string) {
 	var bucket string
 	if bucketSeparator := strings.IndexByte(name, '/'); bucketSeparator != -1 {
 		bucket = name[:bucketSeparator]
 		name = name[bucketSeparator+1:]
 	}
 
-	versionSeparator := strings.LastIndexByte(name, '@')
-	if versionSeparator != -1 {
+	var version string
+	if versionSeparator := strings.LastIndexByte(name, '@'); versionSeparator != -1 {
 		// We don't use the version right now, so we'll just cut it off.
+		version = name[versionSeparator+1:]
 		name = name[:versionSeparator]
 	}
 
+	return bucket, name, version
+}
+
+func (scoop *Scoop) GetAvailableApp(name string) (*App, error) {
+	bucket, name, _ := ParseAppIdentifier(name)
 	if bucket != "" {
-		return getAppFromBucket(bucket, name)
+		return scoop.getAppFromBucket(bucket, name)
 	}
 
-	buckets, err := GetLocalBuckets()
+	buckets, err := scoop.GetLocalBuckets()
 	if err != nil {
 		return nil, fmt.Errorf("error getting local buckets: %w", err)
 	}
@@ -78,17 +86,24 @@ func GetAvailableApp(name string) (*App, error) {
 	return nil, nil
 }
 
-func GetInstalledApp(name string) (*App, error) {
-	apps, err := GetInstalledApps()
-	if err != nil {
-		return nil, fmt.Errorf("error getting installed apps: %w", err)
-	}
-	for _, app := range apps {
-		if strings.EqualFold(app.Name, name) {
-			return &app, nil
+func (scoop *Scoop) GetInstalledApp(name string) (*App, error) {
+	_, name, _ = ParseAppIdentifier(name)
+	name = strings.ToLower(name)
+
+	manifestPath := filepath.Join(scoop.GetAppsDir(), name, "current", "manifest.json")
+	if _, err := os.Stat(manifestPath); err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
 		}
+		return nil, fmt.Errorf("error stat-ing manifest: %w", err)
 	}
-	return nil, nil
+
+	// FIXME Check if installation stems from correct bucket!
+
+	return &App{
+		Name:         name,
+		manifestPath: manifestPath,
+	}, nil
 }
 
 // AvailableApps returns unloaded app manifests. You need to call
@@ -115,19 +130,14 @@ func (b Bucket) AvailableApps() ([]*App, error) {
 
 // GetKnownBuckets returns the list of available "default" buckets that are
 // available, but might have not necessarily been installed locally.
-func GetKnownBuckets() (map[string]string, error) {
-	knownBuckets := make(map[string]string)
-	scoopInstallationDir, err := GetScoopInstallationDir()
-	if err != nil {
-		return nil, fmt.Errorf("error getting scoop installation directory: %w", err)
-	}
-
-	file, err := os.Open(filepath.Join(scoopInstallationDir, "buckets.json"))
+func (scoop *Scoop) GetKnownBuckets() (map[string]string, error) {
+	file, err := os.Open(filepath.Join(scoop.GetScoopInstallationDir(), "buckets.json"))
 	if err != nil {
 		return nil, fmt.Errorf("error opening buckets.json: %w", err)
 	}
 	defer file.Close()
 
+	knownBuckets := make(map[string]string)
 	if err := json.NewDecoder(file).Decode(&knownBuckets); err != nil {
 		return nil, fmt.Errorf("error decoding buckets.json: %w", err)
 	}
@@ -136,21 +146,15 @@ func GetKnownBuckets() (map[string]string, error) {
 }
 
 // GetLocalBuckets is an API representation of locally installed buckets.
-func GetLocalBuckets() ([]Bucket, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("error getting home directory: %w", err)
-	}
-
-	bucketsPath := filepath.Join(home, "scoop/buckets")
-	bucketPaths, err := getDirFilenames(bucketsPath)
+func (scoop *Scoop) GetLocalBuckets() ([]Bucket, error) {
+	bucketPaths, err := getDirFilenames(scoop.GetBucketsDir())
 	if err != nil {
 		return nil, fmt.Errorf("error reaeding bucket names: %w", err)
 	}
 
 	buckets := make([]Bucket, len(bucketPaths))
 	for index, bucketPath := range bucketPaths {
-		buckets[index] = Bucket(filepath.Join(bucketsPath, bucketPath))
+		buckets[index] = Bucket(filepath.Join(scoop.GetBucketsDir(), bucketPath))
 	}
 	return buckets, nil
 }
@@ -167,6 +171,12 @@ type App struct {
 	manifestPath string
 	Bin          []Bin        `json:"bin"`
 	Depends      []Dependency `json:"depends"`
+	EnvAddPath   []string     `json:"env_add_path"`
+	EnvSet       []EnvVar     `json:"env_set"`
+}
+
+type EnvVar struct {
+	Key, Value string
 }
 
 type Dependency struct {
@@ -194,6 +204,8 @@ const (
 	DetailFieldVersion     = "version"
 	DetailFieldNotes       = "notes"
 	DetailFieldDepends     = "depends"
+	DetailFieldEnvSet      = "env_set"
+	DetailFieldEnvAddPath  = "env_add_path"
 )
 
 // LoadDetails will load additional data regarding the manifest, such as
@@ -261,8 +273,20 @@ func (a *App) LoadDetailsWithIter(iter *jsoniter.Iterator, fields ...string) err
 					a.Depends = append(a.Depends, a.parseDependency(iter.ReadString()))
 				}
 			} else {
-				// String vaue at root level to add to path.
 				a.Depends = []Dependency{a.parseDependency(iter.ReadString())}
+			}
+		case DetailFieldEnvAddPath:
+			// Array at top level to create multiple entries
+			if iter.WhatIsNext() == jsoniter.ArrayValue {
+				for iter.ReadArray() {
+					a.EnvAddPath = append(a.EnvAddPath, iter.ReadString())
+				}
+			} else {
+				a.EnvAddPath = []string{iter.ReadString()}
+			}
+		case DetailFieldEnvSet:
+			for key := iter.ReadObject(); key != ""; key = iter.ReadObject() {
+				a.EnvSet = append(a.EnvSet, EnvVar{Key: key, Value: iter.ReadString()})
 			}
 		case DetailFieldNotes:
 			if iter.WhatIsNext() == jsoniter.ArrayValue {
@@ -305,27 +329,22 @@ type Dependencies struct {
 	Values []*Dependencies
 }
 
-func getAppFromBucket(bucket, app string) (*App, error) {
-	bucketDir, err := GetScoopBucketDir()
-	if err != nil {
-		return nil, fmt.Errorf("error getting bucket dir: %w", err)
-	}
-
+func (scoop *Scoop) getAppFromBucket(bucket, app string) (*App, error) {
 	return &App{
 		Name:         app,
-		manifestPath: filepath.Join(bucketDir, bucket, "bucket", app+".json"),
+		manifestPath: filepath.Join(scoop.GetBucketsDir(), bucket, "bucket", app+".json"),
 	}, nil
 }
 
-func (a App) DependencyTree() (*Dependencies, error) {
-	dependencies := Dependencies{App: &a}
+func (scoop *Scoop) DependencyTree(a *App) (*Dependencies, error) {
+	dependencies := Dependencies{App: a}
 	for _, dependency := range a.Depends {
-		dependencyApp, err := getAppFromBucket(dependency.Bucket, dependency.Name)
+		dependencyApp, err := scoop.getAppFromBucket(dependency.Bucket, dependency.Name)
 		if err != nil {
 			return nil, fmt.Errorf("error getting info about dependency: %w", err)
 		}
 
-		subTree, err := dependencyApp.DependencyTree()
+		subTree, err := scoop.DependencyTree(dependencyApp)
 		if err != nil {
 			return nil, fmt.Errorf("error getting sub dependency tree: %w", err)
 		}
@@ -334,12 +353,12 @@ func (a App) DependencyTree() (*Dependencies, error) {
 	return &dependencies, nil
 }
 
-func (a App) ReverseDependencyTree(apps []*App) *Dependencies {
-	dependencies := Dependencies{App: &a}
+func (scoop *Scoop) ReverseDependencyTree(apps []*App, a *App) *Dependencies {
+	dependencies := Dependencies{App: a}
 	for _, app := range apps {
 		for _, dep := range app.Depends {
 			if dep.Name == a.Name {
-				subTree := app.ReverseDependencyTree(apps)
+				subTree := scoop.ReverseDependencyTree(apps, a)
 				dependencies.Values = append(dependencies.Values, subTree)
 			}
 			break
@@ -348,13 +367,8 @@ func (a App) ReverseDependencyTree(apps []*App) *Dependencies {
 	return &dependencies
 }
 
-func GetInstalledApps() ([]App, error) {
-	scoopHome, err := GetAppsDir()
-	if err != nil {
-		return nil, fmt.Errorf("error getting scoop home directory: %w", err)
-	}
-
-	manifestPaths, err := filepath.Glob(filepath.Join(scoopHome, "*/current/manifest.json"))
+func (scoop *Scoop) GetInstalledApps() ([]App, error) {
+	manifestPaths, err := filepath.Glob(filepath.Join(scoop.GetAppsDir(), "*/current/manifest.json"))
 	if err != nil {
 		return nil, fmt.Errorf("error globbing manifests: %w", err)
 	}
@@ -370,25 +384,15 @@ func GetInstalledApps() ([]App, error) {
 	return apps, nil
 }
 
-func GetScoopBucketDir() (string, error) {
-	scoopHome, err := GetScoopDir()
-	if err != nil {
-		return "", fmt.Errorf("error getting scoop home directory: %w", err)
-	}
-
-	return filepath.Join(scoopHome, "buckets"), nil
+func (scoop *Scoop) GetBucketsDir() string {
+	return filepath.Join(scoop.scoopRoot, "buckets")
 }
 
-func GetScoopInstallationDir() (string, error) {
-	appsDir, err := GetAppsDir()
-	if err != nil {
-		return "", fmt.Errorf("error getting scoop apps directory: %w", err)
-	}
-
-	return filepath.Join(appsDir, "scoop", "current"), nil
+func (scoop *Scoop) GetScoopInstallationDir() string {
+	return filepath.Join(scoop.GetAppsDir(), "scoop", "current")
 }
 
-func GetScoopDir() (string, error) {
+func GetDefaultScoopDir() (string, error) {
 	scoopEnv := os.Getenv("SCOOP")
 	if scoopEnv != "" {
 		return scoopEnv, nil
@@ -406,18 +410,13 @@ func GetScoopDir() (string, error) {
 
 // LookupCache will check the cache dir for matching entries. Note that the
 // `app` parameter must be non-empty, but the version is optional.
-func LookupCache(app, version string) ([]string, error) {
-	cacheDir, err := GetCacheDir()
-	if err != nil {
-		return nil, fmt.Errorf("error getting cache dir: %w", err)
-	}
-
+func (scoop *Scoop) LookupCache(app, version string) ([]string, error) {
 	expectedPrefix := cachePathRegex.ReplaceAllString(app, "_")
 	if version != "" {
 		expectedPrefix += "#" + cachePathRegex.ReplaceAllString(version, "_")
 	}
 
-	return filepath.Glob(filepath.Join(cacheDir, expectedPrefix+"*"))
+	return filepath.Glob(filepath.Join(scoop.GetCacheDir(), expectedPrefix+"*"))
 }
 
 var cachePathRegex = regexp.MustCompile(`[^\w\.\-]+`)
@@ -432,20 +431,28 @@ func CachePath(app, version, url string) string {
 	return strings.Join(parts, "#")
 }
 
-func GetCacheDir() (string, error) {
-	scoopHome, err := GetScoopDir()
-	if err != nil {
-		return "", fmt.Errorf("error getting scoop home directory: %w", err)
-	}
-
-	return filepath.Join(scoopHome, "cache"), nil
+func (scoop *Scoop) GetCacheDir() string {
+	return filepath.Join(scoop.scoopRoot, "cache")
 }
 
-func GetAppsDir() (string, error) {
-	scoopHome, err := GetScoopDir()
-	if err != nil {
-		return "", fmt.Errorf("error getting scoop home directory: %w", err)
-	}
+type Scoop struct {
+	scoopRoot string
+}
 
-	return filepath.Join(scoopHome, "apps"), nil
+func (scoop *Scoop) GetAppsDir() string {
+	return filepath.Join(scoop.scoopRoot, "apps")
+}
+
+func NewScoop() (*Scoop, error) {
+	dir, err := GetDefaultScoopDir()
+	if err != nil {
+		return nil, fmt.Errorf("error getting default scoop dir: %w", err)
+	}
+	return NewCustomScoop(dir), nil
+}
+
+func NewCustomScoop(scoopRoot string) *Scoop {
+	return &Scoop{
+		scoopRoot: scoopRoot,
+	}
 }

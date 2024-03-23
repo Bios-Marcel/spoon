@@ -31,7 +31,12 @@ func uninstallCmd() *cobra.Command {
 				fmt.Println("error getting yes flag:", err)
 				os.Exit(1)
 			}
-			if err := checkRunningProcesses(args, yes); err != nil {
+			defaultScoop, err := scoop.NewScoop()
+			if err != nil {
+				fmt.Println("error getting default scoop:", err)
+				os.Exit(1)
+			}
+			if err := checkRunningProcesses(defaultScoop, args, yes); err != nil {
 				fmt.Println(err)
 			}
 
@@ -51,20 +56,16 @@ func uninstallCmd() *cobra.Command {
 	return cmd
 }
 
-func checkRunningProcesses(args []string, yes bool) error {
+func checkRunningProcesses(scoop *scoop.Scoop, args []string, yes bool) error {
 	processes, err := wapi.ProcessList()
 	if err != nil {
 		return fmt.Errorf("error determining runing processes: %w", err)
 	}
 
-	appsDir, err := scoop.GetAppsDir()
-	if err != nil {
-		return err
-	}
-
 	var processPrefixes []string
 	for _, arg := range args {
-		processPrefixes = append(processPrefixes, strings.ToLower(filepath.Join(appsDir, arg)+"\\"))
+		processPrefixes = append(processPrefixes,
+			strings.ToLower(filepath.Join(scoop.GetAppsDir(), arg)+"\\"))
 	}
 
 	var processesToKill []shared.Process

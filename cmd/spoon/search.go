@@ -56,6 +56,12 @@ func searchCmd() *cobra.Command {
 		Example: "search git",
 		Args:    cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
+			defaultScoop, err := scoop.NewScoop()
+			if err != nil {
+				fmt.Println("error getting default scoop:", err)
+				os.Exit(1)
+			}
+
 			searchWorkers := must(cmd.Flags().GetInt("workers"))
 			caseInsensitive := must(cmd.Flags().GetBool("case-insensitive"))
 
@@ -105,7 +111,7 @@ func searchCmd() *cobra.Command {
 
 			// Queue all jobs and close buffered queue, so the goroutines quit
 			// after the jobs are drained and we can wait for the results.
-			queueJobs(searchJobQueue)
+			queueJobs(defaultScoop, searchJobQueue)
 			close(searchJobQueue)
 
 			searchWorkerCompletion.Wait()
@@ -230,7 +236,7 @@ LOOP:
 }
 
 // queueJobs will find all available apps and admit them into the search.
-func queueJobs(queue chan searchJob) {
+func queueJobs(scoop *scoop.Scoop, queue chan searchJob) {
 	buckets, err := scoop.GetLocalBuckets()
 	if err != nil {
 		fmt.Println("error getting buckets:", err)

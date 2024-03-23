@@ -1,10 +1,9 @@
 package main
 
 import (
-	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -88,64 +87,89 @@ func GetShellExecutable() (string, error) {
 	return "", errors.New("shell not found")
 }
 
-// FIXME Implement properly at some point
-func createJunction(from, to string) error {
-	// No need to re-create a junction
-	if _, err := os.Stat(to); err == nil {
-		return nil
-	}
+// createJunction will create multiple junctions. Each pair reflects one
+// junction ([2]string{from, to}).
+func createJunctions(junctions ...[2]string) error {
+	for _, junction := range junctions {
+		from := junction[0]
+		to := junction[1]
+		// No need to re-create a junction
+		if _, err := os.Stat(to); err == nil {
+			return nil
+		}
 
-	cmd := exec.Command("cmd", "/c", "mklink", "/J", to, from)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
+		cmd := exec.Command("cmd", "/c", "mklink", "/J", to, from)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.Stdin = os.Stdin
 
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("error creating junction: %w", err)
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("error creating junction to '%s': %w", to, err)
+		}
 	}
 
 	return nil
 }
 
-func GetUserPath() (string, error) {
+func GetPersistentEnvValues() (map[string]string, error) {
 	cmd := exec.Command(
 		"powershell",
 		"-NoProfile",
-		"[Environment]::GetEnvironmentVariable('PATH', 'User')",
+		"[Environment]::GetEnvironmentVariables('User') | ConvertTo-Json",
 	)
 	pipe, err := cmd.StdoutPipe()
 	if err != nil {
-		return "", fmt.Errorf("error opening pipe: %w", err)
+		return nil, fmt.Errorf("error opening pipe: %w", err)
 	}
-	var stringBuffer bytes.Buffer
 
 	var cmdErr error
 	go func() {
 		cmdErr = cmd.Run()
 	}()
 
-	if _, err := io.Copy(&stringBuffer, pipe); err != nil {
-		return "", err
+	decoder := json.NewDecoder(pipe)
+	result := make(map[string]string)
+	if err := decoder.Decode(&result); err != nil {
+		return nil, fmt.Errorf("error decoding environment variables: %w", err)
 	}
 
 	if cmdErr != nil {
-		return "", cmdErr
+		return nil, fmt.Errorf("error retrieving environment variables: %w", err)
 	}
 
-	return stringBuffer.String(), nil
+	return result, nil
 }
 
-func PersistUserPath(value string) error {
-	pathRestoreCmd := exec.Command(
+// Sets a User-Level Environment variable. An empty value will remove the key
+// completly.
+func SetPersistentEnvValue(key, value string) error {
+	cmd := exec.Command(
 		"powershell",
 		"-NoProfile",
 		"-Command",
-		"[Environment]::SetEnvironmentVariable('PATH','"+value+"','User')",
+		"[Environment]::SetEnvironmentVariable('"+key+"','"+value+"','User')",
 	)
-	pathRestoreCmd.Stdout = os.Stdout
-	pathRestoreCmd.Stderr = os.Stderr
-	pathRestoreCmd.Stdin = os.Stdin
-	return pathRestoreCmd.Run()
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+	return cmd.Run()
+}
+
+func restoreEnvVars(vars []scoop.EnvVar) {
+	var envResetErr error
+	for _, envVar := range vars {
+		// We attempt to reset everything as well as we can, even if one
+		// or more calls fail.
+		if err := SetPersistentEnvValue(envVar.Key, envVar.Value); err != nil {
+			envResetErr = err
+		}
+	}
+
+	// Even if we couldn't reset everything / anything here, we can't do
+	// anything against it. So we'll keep going.
+	if envResetErr != nil {
+		fmt.Println("Note that we weren't able to restore all persistent environment variables properly")
+	}
 }
 
 func shellCmd() *cobra.Command {
@@ -155,6 +179,16 @@ func shellCmd() *cobra.Command {
 		Args:              cobra.MinimumNArgs(1),
 		ValidArgsFunction: autocompleteAvailable,
 		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) == 0 {
+				return
+			}
+
+			defaultScoop, err := scoop.NewScoop()
+			if err != nil {
+				fmt.Println("error finding defautl scoop:", err)
+				os.Exit(1)
+			}
+
 			// If we are using PowershellCore, we can't user PowershellDesktop
 			// and vice versa, as the module paths will cause conflicts, causing
 			// us to not find `Get-FileHash` for example.
@@ -174,14 +208,20 @@ func shellCmd() *cobra.Command {
 				shell = "powershell.exe"
 			}
 
+			oldUserEnv, err := GetPersistentEnvValues()
+			if err != nil {
+				fmt.Println("error backing up user enviroment:", err)
+				os.Exit(1)
+			}
+
 			// Windows has User-Level and System-Level PATHs. When calling
 			// os.GetEnv, you always get the combined PATH. Since scoop
 			// manipulates the User-Level PATH during install, we need to
 			// restore it to its old User-Level PATH, instead of the old
 			// combined PATH, as we pollute the path otherwise.
-			oldUserPath, err := GetUserPath()
-			if err != nil {
-				fmt.Println("error retrieving old user path:", err)
+			oldUserPath := oldUserEnv["Path"]
+			if oldUserPath == "" {
+				fmt.Println("user-level persistent path empty, please report a bug")
 				os.Exit(1)
 			}
 
@@ -190,33 +230,39 @@ func shellCmd() *cobra.Command {
 				fmt.Println("error getting abs scoop path:", err)
 				os.Exit(1)
 			}
-			oldCombinedPath := os.Getenv("PATH")
+			tempScoop := scoop.NewCustomScoop(tempScoopPath)
+
+			// For some reason the PATH contains trailing space, causing issues
+			// down the line, so we trim space.
+			oldCombinedPath := strings.TrimSpace(os.Getenv("PATH"))
 			newShimPath := filepath.Join(tempScoopPath, "shims")
 			newTempPath := newShimPath + ";" + oldCombinedPath
 
-			env := os.Environ()
+			installEnv := os.Environ()
 			var scoopPathSet bool
 			// We want to keep the env in tact for subprocesses, as setting
 			// cmd.Env will actually overwrite the whole env.
-			for index, envVar := range env {
+			for index, envVar := range installEnv {
 				if strings.HasPrefix(envVar, "PATH=") {
-					env[index] = "PATH=" + newShimPath + ";" + strings.TrimPrefix(envVar, "PATH=")
+					installEnv[index] = "PATH=" + newShimPath + ";" + strings.TrimPrefix(envVar, "PATH=")
 					continue
 				} else if strings.HasPrefix(envVar, "SCOOP=") {
-					env[index] = "SCOOP=" + tempScoopPath
-					// SCOOP var might not be present, so we need to append it
-					// if it wasn't overwritten already.
+					installEnv[index] = "SCOOP=" + tempScoopPath
+					// SCOOP var might not be present, so we Your local changes
+					// to the following files would be overwritten by mergeneed
+					// to append it if it wasn't overwritten already.
 					scoopPathSet = true
 				}
 			}
 			if !scoopPathSet {
-				env = append(env, "SCOOP="+tempScoopPath)
+				installEnv = append(installEnv, "SCOOP="+tempScoopPath)
 			}
 			/*
 				TODO:
 
 				Support for different shells (pwsh / powershell / batch / bash / wsl?)
 				Proper support for subshelling
+				$env:CUSTOM in env_set
 			*/
 
 			if err := os.MkdirAll("./.scoop/apps/scoop", os.ModeDir); err != nil {
@@ -224,24 +270,17 @@ func shellCmd() *cobra.Command {
 				os.Exit(1)
 			}
 
-			// FIXME Rework API for these calls to be less cancerous
-			cacheDir, _ := scoop.GetCacheDir()
-			installDir, _ := scoop.GetScoopInstallationDir()
-			bucketDir, _ := scoop.GetScoopBucketDir()
-
-			if err := createJunction(cacheDir, `.\.scoop\cache`); err != nil {
-				fmt.Println("error linking cache:", err)
-				os.Exit(1)
-			}
-			if err := createJunction(installDir, `.\.scoop\apps\scoop\current`); err != nil {
-				fmt.Println("error linking scoop installation:", err)
-				os.Exit(1)
-			}
-			if err := createJunction(bucketDir, `.\.scoop\buckets`); err != nil {
-				fmt.Println("error linking buckets:", err)
+			if err := createJunctions([][2]string{
+				{defaultScoop.GetCacheDir(), tempScoop.GetCacheDir()},
+				{defaultScoop.GetScoopInstallationDir(), tempScoop.GetScoopInstallationDir()},
+				{defaultScoop.GetBucketsDir(), tempScoop.GetBucketsDir()},
+			}...); err != nil {
+				fmt.Println("error creating junctions:", err)
 				os.Exit(1)
 			}
 
+			var envToRestore []scoop.EnvVar
+			var tempEnv []scoop.EnvVar
 			// Scoop has a bug, where running something such as
 			// `scoop install lua golangci-lint@v1.56.2` causes an issue. It
 			// seems scoop doesn't parse the arguments properly. Therefore we
@@ -255,28 +294,88 @@ func shellCmd() *cobra.Command {
 					"install",
 					dependency,
 				)
-				scoopInstallCmd.Env = env
-
+				scoopInstallCmd.Env = installEnv
 				scoopInstallCmd.Stdout = os.Stdout
 				scoopInstallCmd.Stderr = os.Stderr
 				scoopInstallCmd.Stdin = os.Stdin
 
-				if err := scoopInstallCmd.Run(); err != nil {
-					// Since we don't know whether the PATH was manipulated even on
-					// an unsuccessful install, we still need to restore it.
-					PersistUserPath(oldUserPath)
+				if err = scoopInstallCmd.Run(); err != nil {
+					break
+				}
 
-					fmt.Println("error installing:", err)
-					os.Exit(1)
+				// After successful installation, we need to properly setup the
+				// environment for each apps. Some apps require extra
+				// environment variables and some apps use env_add_path instead
+				// of specifying shims.
+				var app *scoop.App
+				app, err = tempScoop.GetInstalledApp(dependency)
+				if err != nil {
+					break
+				}
+				if err = app.LoadDetails(
+					scoop.DetailFieldEnvSet,
+					scoop.DetailFieldEnvAddPath,
+				); err != nil {
+					break
+				}
+
+				dir := filepath.Join(tempScoopPath, "apps", app.Name, "current")
+				for _, pathEntry := range app.EnvAddPath {
+					if !filepath.IsAbs(pathEntry) {
+						pathEntry = filepath.Join(dir, pathEntry)
+					}
+					newTempPath = pathEntry + ";" + newTempPath
+				}
+
+				// scoop supports some variables in certain fields. Sadly these
+				// fields don't document their supported variables, but I found
+				// these two in my local buckets.
+				persistDir := filepath.Join(tempScoopPath, "persist", app.Name)
+				for _, envVar := range app.EnvSet {
+					envToRestore = append(envToRestore, scoop.EnvVar{
+						Key:   envVar.Key,
+						Value: oldUserEnv[envVar.Key],
+					})
+
+					envVar.Value = strings.ReplaceAll(envVar.Value, "$persist_dir", persistDir)
+					envVar.Value = strings.ReplaceAll(envVar.Value, "$dir", dir)
+					tempEnv = append(tempEnv, envVar)
 				}
 			}
 
-			// Scoop forcibly adds the shim dir to the path in a persistent
-			// manner. We can't prevent this, but we can restore the previous
-			// state.
-			if err := PersistUserPath(oldUserPath); err != nil {
-				fmt.Println("error restoring path:", err)
+			if err != nil {
+				fmt.Println("Error during installation, aborting ...")
+				// Scoop forcibly adds the shim dir to the path in a persistent
+				// manner. We can't prevent this, but we can restore the previous
+				// state.
+				if err := SetPersistentEnvValue("PATH", oldUserPath); err != nil {
+					fmt.Println("error restoring path:", err)
+				}
 				os.Exit(1)
+			}
+
+			restoreEnvVars(envToRestore)
+
+			// Setup env cleanup. Do before adding PATH, since we clean that up separately.
+			var envPowershellTeardown strings.Builder
+			for _, envEntry := range tempEnv {
+				envPowershellTeardown.WriteString(`$env:`)
+				envPowershellTeardown.WriteString(envEntry.Key)
+				envPowershellTeardown.WriteString(`="`)
+				// This gets the pre-scoop install variable, as scoop can't
+				// access our environment
+				envPowershellTeardown.WriteString(os.Getenv(envEntry.Key))
+				envPowershellTeardown.WriteString(`";`)
+			}
+
+			tempEnv = append(tempEnv, scoop.EnvVar{Key: "PATH", Value: newTempPath})
+			var envPowershellSetup strings.Builder
+			for _, envEntry := range tempEnv {
+				envPowershellSetup.WriteString(`$env:`)
+				envPowershellSetup.WriteString(envEntry.Key)
+				envPowershellSetup.WriteString(`="`)
+				envPowershellSetup.WriteString(envEntry.Value)
+				envPowershellSetup.WriteString(`";`)
 			}
 
 			// Workaround, as starting a subshell on windows doesn't seem to be
@@ -286,7 +385,11 @@ func shellCmd() *cobra.Command {
 				// Not only do we need to temporary add our shims to the path,
 				// we also need to reset the temporary path, as this is carried
 				// over out of the subshell, why ever ...
-				[]byte(`$env:PATH="`+newTempPath+`"; `+shell+`; $env:PATH="`+oldCombinedPath+`"`),
+				[]byte(
+					envPowershellSetup.String()+
+						shell+`;`+
+						envPowershellTeardown.String()+
+						`$env:PATH="`+oldCombinedPath+`"`),
 				0o700,
 			)
 		},
