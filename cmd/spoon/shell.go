@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -174,7 +175,41 @@ func restoreEnvVars(vars []scoop.EnvVar) {
 
 func shellCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:               "shell",
+		Use:   "shell",
+		Short: "Manage nix-shell like scoop environments",
+	}
+	cmd.AddCommand(&cobra.Command{
+		// This command is quite handy, as a simple rm on the console will fail
+		// and people will have to open their explorer.
+		Use:   "clean",
+		Short: "Delete all scoop environment related files",
+		Args:  cobra.NoArgs,
+		Run: func(cmd *cobra.Command, args []string) {
+			// Delete shellscript first, as nothing can go wrong.
+			if err := os.Remove("shell.ps1"); err != nil {
+				fmt.Println("error deleting scoop shell script")
+				os.Exit(1)
+			}
+
+			// We can't delete symlinks that are read-only, therefore we need to manually
+			// set write-permissions.
+			filepath.Walk("./.scoop", func(path string, info fs.FileInfo, err error) error {
+				if info.Mode()&os.ModeSymlink == os.ModeSymlink {
+					if err := os.Chmod(path, 0o600); err != nil {
+						fmt.Println("error setting symlink permissions:", err)
+					}
+				}
+
+				return nil
+			})
+			if err := os.RemoveAll("./.scoop"); err != nil {
+				fmt.Println("error deleting scoop environment:", err)
+				os.Exit(1)
+			}
+		},
+	})
+	cmd.AddCommand(&cobra.Command{
+		Use:               "setup",
 		Short:             "Create a subshell with the given applications on your PATH",
 		Args:              cobra.MinimumNArgs(1),
 		ValidArgsFunction: autocompleteAvailable,
@@ -263,6 +298,8 @@ func shellCmd() *cobra.Command {
 				Support for different shells (pwsh / powershell / batch / bash / wsl?)
 				Proper support for subshelling
 				$env:CUSTOM in env_set
+				$source variable
+				Prevent install (unpack) if app is already installed in user, instead hardlink (its basically free)
 			*/
 
 			if err := os.MkdirAll("./.scoop/apps/scoop", os.ModeDir); err != nil {
@@ -393,7 +430,7 @@ func shellCmd() *cobra.Command {
 				0o700,
 			)
 		},
-	}
+	})
 
 	return cmd
 }
