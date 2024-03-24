@@ -43,9 +43,8 @@ func main() {
 	if err := rootCmd.Execute(); err != nil {
 		if strings.HasPrefix(err.Error(), "unknown command") {
 			fmt.Println("Delegating to scoop ...")
-			execScoopCommand(os.Args[1], os.Args[2:]...)
+			os.Exit(execScoopCommand(os.Args[1], os.Args[2:]...))
 		} else {
-			fmt.Println("error:", err)
 			os.Exit(1)
 		}
 	}

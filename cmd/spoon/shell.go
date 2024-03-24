@@ -184,44 +184,51 @@ func shellCmd() *cobra.Command {
 		Use:   "clean",
 		Short: "Delete all scoop environment related files",
 		Args:  cobra.NoArgs,
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: RunE(func(cmd *cobra.Command, args []string) error {
 			// Delete shellscript first, as nothing can go wrong.
-			if err := os.Remove("shell.ps1"); err != nil {
-				fmt.Println("error deleting scoop shell script")
-				os.Exit(1)
+			if err := os.RemoveAll("shell.ps1"); err != nil {
+				return fmt.Errorf("error deleting '%s': %w", "shell.ps1", err)
 			}
 
 			// We can't delete symlinks that are read-only, therefore we need to manually
 			// set write-permissions.
-			filepath.Walk("./.scoop", func(path string, info fs.FileInfo, err error) error {
-				if info.Mode()&os.ModeSymlink == os.ModeSymlink {
+			if err := filepath.WalkDir(".scoop", func(path string, d fs.DirEntry, err error) error {
+				if err != nil {
+					return err
+				}
+
+				if d.Type()&os.ModeSymlink == os.ModeSymlink {
 					if err := os.Chmod(path, 0o600); err != nil {
-						fmt.Println("error setting symlink permissions:", err)
+						return fmt.Errorf("error setting symlink permissions: %w", err)
 					}
 				}
 
 				return nil
-			})
-			if err := os.RemoveAll("./.scoop"); err != nil {
-				fmt.Println("error deleting scoop environment:", err)
-				os.Exit(1)
+			}); err != nil {
+				if os.IsNotExist(err) {
+					return nil
+				}
+				return err
 			}
-		},
+			if err := os.RemoveAll(".scoop"); err != nil {
+				return fmt.Errorf("error deleting '%s': %w", `.scoop`, err)
+			}
+			return nil
+		}),
 	})
 	cmd.AddCommand(&cobra.Command{
 		Use:               "setup",
 		Short:             "Create a subshell with the given applications on your PATH",
 		Args:              cobra.MinimumNArgs(1),
 		ValidArgsFunction: autocompleteAvailable,
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: RunE(func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
-				return
+				return nil
 			}
 
 			defaultScoop, err := scoop.NewScoop()
 			if err != nil {
-				fmt.Println("error finding defautl scoop:", err)
-				os.Exit(1)
+				return fmt.Errorf("error finding defautl scoop: %w", err)
 			}
 
 			// If we are using PowershellCore, we can't user PowershellDesktop
@@ -229,8 +236,7 @@ func shellCmd() *cobra.Command {
 			// us to not find `Get-FileHash` for example.
 			shell, err := GetShellExecutable()
 			if err != nil {
-				fmt.Println("error determining shell:", err)
-				os.Exit(1)
+				return fmt.Errorf("error determining shell: %w", err)
 			}
 
 			shell = strings.ToLower(shell)
@@ -245,8 +251,7 @@ func shellCmd() *cobra.Command {
 
 			oldUserEnv, err := GetPersistentEnvValues()
 			if err != nil {
-				fmt.Println("error backing up user enviroment:", err)
-				os.Exit(1)
+				return fmt.Errorf("error backing up user enviroment: %w", err)
 			}
 
 			// Windows has User-Level and System-Level PATHs. When calling
@@ -256,14 +261,12 @@ func shellCmd() *cobra.Command {
 			// combined PATH, as we pollute the path otherwise.
 			oldUserPath := oldUserEnv["Path"]
 			if oldUserPath == "" {
-				fmt.Println("user-level persistent path empty, please report a bug")
-				os.Exit(1)
+				return errors.New("user-level persistent path empty, please report a bug")
 			}
 
 			tempScoopPath, err := filepath.Abs("./.scoop")
 			if err != nil {
-				fmt.Println("error getting abs scoop path:", err)
-				os.Exit(1)
+				return fmt.Errorf("error getting abs scoop path: %w", err)
 			}
 			tempScoop := scoop.NewCustomScoop(tempScoopPath)
 
@@ -303,8 +306,7 @@ func shellCmd() *cobra.Command {
 			*/
 
 			if err := os.MkdirAll("./.scoop/apps/scoop", os.ModeDir); err != nil {
-				fmt.Println("error creating temporary scoop dir: %w", err)
-				os.Exit(1)
+				return fmt.Errorf("error creating temporary scoop dir: %w", err)
 			}
 
 			if err := createJunctions([][2]string{
@@ -312,8 +314,7 @@ func shellCmd() *cobra.Command {
 				{defaultScoop.GetScoopInstallationDir(), tempScoop.GetScoopInstallationDir()},
 				{defaultScoop.GetBucketsDir(), tempScoop.GetBucketsDir()},
 			}...); err != nil {
-				fmt.Println("error creating junctions:", err)
-				os.Exit(1)
+				return fmt.Errorf("error creating junctions: %w", err)
 			}
 
 			var envToRestore []scoop.EnvVar
@@ -386,9 +387,9 @@ func shellCmd() *cobra.Command {
 				// manner. We can't prevent this, but we can restore the previous
 				// state.
 				if err := SetPersistentEnvValue("PATH", oldUserPath); err != nil {
-					fmt.Println("error restoring path:", err)
+					return fmt.Errorf("error restoring path: %w", err)
 				}
-				os.Exit(1)
+				return fmt.Errorf("error installing dependencies: %w", err)
 			}
 
 			restoreEnvVars(envToRestore)
@@ -417,7 +418,7 @@ func shellCmd() *cobra.Command {
 
 			// Workaround, as starting a subshell on windows doesn't seem to be
 			// so easy after all.
-			os.WriteFile(
+			if err := os.WriteFile(
 				"shell.ps1",
 				// Not only do we need to temporary add our shims to the path,
 				// we also need to reset the temporary path, as this is carried
@@ -428,8 +429,11 @@ func shellCmd() *cobra.Command {
 						envPowershellTeardown.String()+
 						`$env:PATH="`+oldCombinedPath+`"`),
 				0o700,
-			)
-		},
+			); err != nil {
+				return fmt.Errorf("error creating shell script: %w", err)
+			}
+			return nil
+		}),
 	})
 
 	return cmd

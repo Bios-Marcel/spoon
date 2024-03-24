@@ -8,6 +8,20 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// RunE wraps the actual runE passed to cobra. This allows us to Silence the
+// Usage string if a non usage error occured.
+func RunE(
+	runE func(cmd *cobra.Command, args []string) error,
+) func(cmd *cobra.Command, args []string) error {
+	return func(cmd *cobra.Command, args []string) error {
+		if err := runE(cmd, args); err != nil {
+			cmd.SilenceUsage = true
+			return err
+		}
+		return nil
+	}
+}
+
 func execScoopCommand(command string, args ...string) int {
 	cmd := exec.Command("scoop", append(strings.Split(command, " "), args...)...)
 	cmd.Stdout = os.Stdout
