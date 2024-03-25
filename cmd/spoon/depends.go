@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/Bios-Marcel/spoon/pkg/scoop"
@@ -14,30 +13,31 @@ func dependsCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		// TODO USage
 		Use:   "depends {app}",
-		Short: "TODO",
-		Long:  "TODO",
+		Short: "Show dependency tree or reverse dependency tree of an app",
 		Example: examples(
-			"TODO",
+			"spoon depends poetry",
+			"spoon depends -r python",
 		),
-		Aliases:           []string{"depend"},
+		Aliases:           []string{"depend", "needs", "need"},
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: autocompleteAvailable,
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: RunE(func(cmd *cobra.Command, args []string) error {
 			defaultScoop, err := scoop.NewScoop()
 			if err != nil {
-				fmt.Println("error getting default scoop:", err)
-				os.Exit(1)
+				return fmt.Errorf("error getting default scoop: %w", err)
 			}
 			app, err := defaultScoop.GetAvailableApp(args[0])
 			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
+				return fmt.Errorf("error looking up app: %w", err)
+			}
+
+			if app == nil {
+				return fmt.Errorf("app '%s' doesn't exist", args[0])
 			}
 
 			iter := jsoniter.Parse(jsoniter.ConfigFastest, nil, 1024*128)
 			if err := app.LoadDetailsWithIter(iter, scoop.DetailFieldDepends); err != nil {
-				fmt.Println(err)
-				os.Exit(1)
+				return fmt.Errorf("error loading app details: %w", err)
 			}
 
 			reverse := must(cmd.Flags().GetBool("reverse"))
@@ -51,22 +51,19 @@ func dependsCmd() *cobra.Command {
 			if reverse {
 				buckets, err := defaultScoop.GetLocalBuckets()
 				if err != nil {
-					fmt.Println(err)
-					os.Exit(1)
+					return fmt.Errorf("error getting buckets: %w", err)
 				}
 
 				var apps []*scoop.App
 				for _, bucket := range buckets {
 					bucketApps, err := bucket.AvailableApps()
 					if err != nil {
-						fmt.Println(err)
-						os.Exit(1)
+						return fmt.Errorf("error getting available apps for bucket: %w", err)
 					}
 
 					for _, app := range bucketApps {
 						if err := app.LoadDetailsWithIter(iter, scoop.DetailFieldDepends); err != nil {
-							fmt.Println(err)
-							os.Exit(1)
+							return fmt.Errorf("error loading app details: %w", err)
 						}
 					}
 
@@ -78,13 +75,14 @@ func dependsCmd() *cobra.Command {
 			} else {
 				tree, err := defaultScoop.DependencyTree(app)
 				if err != nil {
-					fmt.Println(err)
-					os.Exit(1)
+					return fmt.Errorf("error building dependency tree: %w", err)
 				}
 
 				printDeps(0, tree)
 			}
-		},
+
+			return nil
+		}),
 	}
 
 	cmd.Flags().BoolP("reverse", "r", false, "Reverse the direction we retrieve dependencies")
