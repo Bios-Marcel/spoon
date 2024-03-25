@@ -263,6 +263,7 @@ func shellCmd() *cobra.Command {
 			if oldUserPath == "" {
 				return errors.New("user-level persistent path empty, please report a bug")
 			}
+			envToRestore := []scoop.EnvVar{{Key: "Path", Value: oldUserPath}}
 
 			tempScoopPath, err := filepath.Abs("./.scoop")
 			if err != nil {
@@ -270,11 +271,9 @@ func shellCmd() *cobra.Command {
 			}
 			tempScoop := scoop.NewCustomScoop(tempScoopPath)
 
-			// For some reason the PATH contains trailing space, causing issues
 			// down the line, so we trim space.
-			oldCombinedPath := strings.TrimSpace(os.Getenv("PATH"))
 			newShimPath := filepath.Join(tempScoopPath, "shims")
-			newTempPath := newShimPath + ";" + oldCombinedPath
+			newTempPath := newShimPath
 
 			installEnv := os.Environ()
 			var scoopPathSet bool
@@ -317,7 +316,6 @@ func shellCmd() *cobra.Command {
 				return fmt.Errorf("error creating junctions: %w", err)
 			}
 
-			var envToRestore []scoop.EnvVar
 			var tempEnv []scoop.EnvVar
 			// Scoop has a bug, where running something such as
 			// `scoop install lua golangci-lint@v1.56.2` causes an issue. It
@@ -381,33 +379,19 @@ func shellCmd() *cobra.Command {
 				}
 			}
 
+			// Scoop forcibly adds the shim dir to the path in a persistent
+			// manner. We can't prevent this, but we can restore the previous
+			// state. Additionally some apps also have "env_set" and
+			// "env_add_path" instructions, which also do persistent changes.
+			restoreEnvVars(envToRestore)
+
 			if err != nil {
-				fmt.Println("Error during installation, aborting ...")
-				// Scoop forcibly adds the shim dir to the path in a persistent
-				// manner. We can't prevent this, but we can restore the previous
-				// state.
-				if err := SetPersistentEnvValue("PATH", oldUserPath); err != nil {
-					return fmt.Errorf("error restoring path: %w", err)
-				}
 				return fmt.Errorf("error installing dependencies: %w", err)
 			}
 
-			restoreEnvVars(envToRestore)
-
-			// Setup env cleanup. Do before adding PATH, since we clean that up separately.
-			var envPowershellTeardown strings.Builder
-			for _, envEntry := range tempEnv {
-				envPowershellTeardown.WriteString(`$env:`)
-				envPowershellTeardown.WriteString(envEntry.Key)
-				envPowershellTeardown.WriteString(`="`)
-				// This gets the pre-scoop install variable, as scoop can't
-				// access our environment
-				envPowershellTeardown.WriteString(os.Getenv(envEntry.Key))
-				envPowershellTeardown.WriteString(`";`)
-			}
-
-			tempEnv = append(tempEnv, scoop.EnvVar{Key: "PATH", Value: newTempPath})
 			var envPowershellSetup strings.Builder
+			envPowershellSetup.WriteString(shell)
+			envPowershellSetup.WriteString(" -NoExit -Command '")
 			for _, envEntry := range tempEnv {
 				envPowershellSetup.WriteString(`$env:`)
 				envPowershellSetup.WriteString(envEntry.Key)
@@ -415,6 +399,7 @@ func shellCmd() *cobra.Command {
 				envPowershellSetup.WriteString(envEntry.Value)
 				envPowershellSetup.WriteString(`";`)
 			}
+			envPowershellSetup.WriteString(`$env:PATH="` + newTempPath + `;$PATH"'`)
 
 			// Workaround, as starting a subshell on windows doesn't seem to be
 			// so easy after all.
@@ -423,11 +408,7 @@ func shellCmd() *cobra.Command {
 				// Not only do we need to temporary add our shims to the path,
 				// we also need to reset the temporary path, as this is carried
 				// over out of the subshell, why ever ...
-				[]byte(
-					envPowershellSetup.String()+
-						shell+`;`+
-						envPowershellTeardown.String()+
-						`$env:PATH="`+oldCombinedPath+`"`),
+				[]byte(envPowershellSetup.String()),
 				0o700,
 			); err != nil {
 				return fmt.Errorf("error creating shell script: %w", err)
