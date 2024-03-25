@@ -8,7 +8,12 @@ import (
 )
 
 func autocompleteAvailable(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-	buckets, err := scoop.GetLocalBuckets()
+	defaultScoop, err := scoop.NewScoop()
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+
+	buckets, err := defaultScoop.GetLocalBuckets()
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
@@ -33,14 +38,22 @@ func autocompleteAvailable(cmd *cobra.Command, args []string, toComplete string)
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 	return matches, cobra.ShellCompDirectiveDefault
-
 }
 
-func autocompleteInstalled(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+func autocompleteInstalled(
+	cmd *cobra.Command,
+	args []string,
+	toComplete string,
+) ([]string, cobra.ShellCompDirective) {
 	toComplete = strings.ToLower(toComplete)
 	var matches []string
 
-	apps, err := scoop.GetInstalledApps()
+	defaultScoop, err := scoop.NewScoop()
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+
+	apps, err := defaultScoop.GetInstalledApps()
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}

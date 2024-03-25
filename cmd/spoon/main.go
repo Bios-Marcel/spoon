@@ -35,6 +35,7 @@ func main() {
 	rootCmd.AddCommand(updateCmd())
 	rootCmd.AddCommand(bucketCmd())
 	rootCmd.AddCommand(catCmd())
+	rootCmd.AddCommand(shellCmd())
 	rootCmd.AddCommand(statusCmd())
 	rootCmd.AddCommand(infoCmd())
 	rootCmd.AddCommand(dependsCmd())
@@ -42,9 +43,8 @@ func main() {
 	if err := rootCmd.Execute(); err != nil {
 		if strings.HasPrefix(err.Error(), "unknown command") {
 			fmt.Println("Delegating to scoop ...")
-			execScoopCommand(os.Args[1], os.Args[2:]...)
+			os.Exit(execScoopCommand(os.Args[1], os.Args[2:]...))
 		} else {
-			fmt.Println("error:", err)
 			os.Exit(1)
 		}
 	}
