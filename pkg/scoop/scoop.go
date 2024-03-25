@@ -2,6 +2,7 @@ package scoop
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -20,27 +21,58 @@ func getDirFilenames(dir string) ([]string, error) {
 	return dirHandle.Readdirnames(-1)
 }
 
-type Bucket string
+type Bucket struct {
+	name        string
+	rootDir     string
+	manifestDir string
+}
 
 // Bucket is the directory name of the bucket and therefore name of the bucket.
-func (b Bucket) Name() string {
-	return filepath.Base(filepath.Clean(string(b)))
+func (b *Bucket) Name() string {
+	if b.name == "" {
+		b.name = filepath.Base(filepath.Clean(b.rootDir))
+	}
+	return b.name
 }
 
 // Dir is the bucket directory, which contains the subdirectory "bucket" with
 // the manifests.
-func (b Bucket) Dir() string {
-	return string(b)
+func (b *Bucket) Dir() string {
+	return b.rootDir
 }
 
 // ManifestDir is the directory path of the bucket without a leading slash.
-func (b Bucket) ManifestDir() string {
-	return filepath.Join(string(b), "bucket")
+func (b *Bucket) ManifestDir() string {
+	if b.manifestDir != "" {
+		return b.manifestDir
+	}
+
+	// The standard scoop buckets contain a subdirectory `bucket`, which
+	// contains the manifests. However, you can also have a flat repository,
+	// with just `.json` files at the top.
+	defaultPath := filepath.Join(b.rootDir, "bucket")
+	if _, err := os.Stat(defaultPath); !os.IsNotExist(err) {
+		// We won't handle the error case here, as it is probably irrelevant
+		// and hasn't handle before either.
+		b.manifestDir = defaultPath
+	} else {
+		b.manifestDir = b.rootDir
+	}
+
+	return b.manifestDir
+}
+
+func (b *Bucket) GetApp(name string) *App {
+	return &App{
+		Bucket:       b,
+		Name:         name,
+		manifestPath: filepath.Join(b.ManifestDir(), name+".json"),
+	}
 }
 
 // Remove removes the bucket, but doesn't unisntall any of its installed
 // applications.
-func (b Bucket) Remove() error {
+func (b *Bucket) Remove() error {
 	return os.RemoveAll(b.Dir())
 }
 
@@ -63,10 +95,33 @@ func ParseAppIdentifier(name string) (string, string, string) {
 	return bucket, name, version
 }
 
+var ErrBucketNotFound = errors.New("bucket not found")
+
+func (scoop *Scoop) GetBucket(name string) (*Bucket, error) {
+	bucketsDir := scoop.GetBucketsDir()
+	bucketPaths, err := getDirFilenames(bucketsDir)
+	if err != nil {
+		return nil, fmt.Errorf("error reaeding bucket names: %w", err)
+	}
+
+	for _, bucketPath := range bucketPaths {
+		bucket := &Bucket{rootDir: filepath.Join(bucketsDir, bucketPath)}
+		if bucket.Name() == name {
+			return bucket, nil
+		}
+	}
+
+	return nil, fmt.Errorf("'%s': %w", name, err)
+}
+
 func (scoop *Scoop) GetAvailableApp(name string) (*App, error) {
 	bucket, name, _ := ParseAppIdentifier(name)
 	if bucket != "" {
-		return scoop.getAppFromBucket(bucket, name)
+		bucket, err := scoop.GetBucket(bucket)
+		if err != nil {
+			return nil, fmt.Errorf("error getting bucket: %w", err)
+		}
+		return bucket.GetApp(name), nil
 	}
 
 	buckets, err := scoop.GetLocalBuckets()
@@ -78,6 +133,7 @@ func (scoop *Scoop) GetAvailableApp(name string) (*App, error) {
 		potentialManifest := filepath.Join(bucket.ManifestDir(), name+".json")
 		if _, err := os.Stat(potentialManifest); err == nil {
 			return &App{
+				Bucket:       bucket,
 				Name:         name,
 				manifestPath: potentialManifest,
 			}, nil
@@ -109,20 +165,27 @@ func (scoop *Scoop) GetInstalledApp(name string) (*App, error) {
 // AvailableApps returns unloaded app manifests. You need to call
 // [App.LoadDetails] on each one. This allows for optimisation by
 // parallelisation where desired.
-func (b Bucket) AvailableApps() ([]*App, error) {
+func (b *Bucket) AvailableApps() ([]*App, error) {
 	manifestDir := b.ManifestDir()
 	names, err := getDirFilenames(manifestDir)
 	if err != nil {
 		return nil, fmt.Errorf("error getting bucket entries: %w", err)
 	}
 
-	apps := make([]*App, len(names))
-	for index, name := range names {
-		apps[index] = &App{
+	apps := make([]*App, 0, len(names))
+	for _, name := range names {
+		// Especially in flat buckets we might have other files, such as .git,
+		// LICENSE or a README.md or whatever else people put there.
+		if !strings.HasSuffix(name, ".json") {
+			continue
+		}
+
+		apps = append(apps, &App{
+			Bucket: b,
 			// Cut off .json
 			Name:         name[:len(name)-5],
 			manifestPath: manifestDir + "\\" + name,
-		}
+		})
 	}
 
 	return apps, nil
@@ -146,15 +209,15 @@ func (scoop *Scoop) GetKnownBuckets() (map[string]string, error) {
 }
 
 // GetLocalBuckets is an API representation of locally installed buckets.
-func (scoop *Scoop) GetLocalBuckets() ([]Bucket, error) {
+func (scoop *Scoop) GetLocalBuckets() ([]*Bucket, error) {
 	bucketPaths, err := getDirFilenames(scoop.GetBucketsDir())
 	if err != nil {
 		return nil, fmt.Errorf("error reaeding bucket names: %w", err)
 	}
 
-	buckets := make([]Bucket, len(bucketPaths))
+	buckets := make([]*Bucket, len(bucketPaths))
 	for index, bucketPath := range bucketPaths {
-		buckets[index] = Bucket(filepath.Join(scoop.GetBucketsDir(), bucketPath))
+		buckets[index] = &Bucket{rootDir: filepath.Join(scoop.GetBucketsDir(), bucketPath)}
 	}
 	return buckets, nil
 }
@@ -164,15 +227,17 @@ func (scoop *Scoop) GetLocalBuckets() ([]Bucket, error) {
 // example when you are using an auto-generated manifest for a version that's
 // not available anymore. In that case, scoop will lose the bucket information.
 type App struct {
-	Name         string `json:"name"`
-	Description  string `json:"description"`
-	Version      string `json:"version"`
-	Notes        string `json:"notes"`
+	Name        string       `json:"name"`
+	Description string       `json:"description"`
+	Version     string       `json:"version"`
+	Notes       string       `json:"notes"`
+	Bin         []Bin        `json:"bin"`
+	Depends     []Dependency `json:"depends"`
+	EnvAddPath  []string     `json:"env_add_path"`
+	EnvSet      []EnvVar     `json:"env_set"`
+
+	Bucket       *Bucket `json:"-"`
 	manifestPath string
-	Bin          []Bin        `json:"bin"`
-	Depends      []Dependency `json:"depends"`
-	EnvAddPath   []string     `json:"env_add_path"`
-	EnvSet       []EnvVar     `json:"env_set"`
 }
 
 type EnvVar struct {
@@ -192,10 +257,6 @@ type Bin struct {
 
 func (a App) ManifestPath() string {
 	return a.manifestPath
-}
-
-func (a App) Bucket() string {
-	return filepath.Base(filepath.Dir(a.manifestPath))
 }
 
 const (
@@ -318,7 +379,7 @@ func (a App) parseDependency(value string) Dependency {
 		return Dependency{}
 	case 1:
 		// No bucket means same bucket.
-		return Dependency{Bucket: a.Bucket(), Name: parts[0]}
+		return Dependency{Bucket: a.Bucket.Name(), Name: parts[0]}
 	default:
 		return Dependency{Bucket: parts[0], Name: parts[1]}
 	}
@@ -329,21 +390,15 @@ type Dependencies struct {
 	Values []*Dependencies
 }
 
-func (scoop *Scoop) getAppFromBucket(bucket, app string) (*App, error) {
-	return &App{
-		Name:         app,
-		manifestPath: filepath.Join(scoop.GetBucketsDir(), bucket, "bucket", app+".json"),
-	}, nil
-}
-
 func (scoop *Scoop) DependencyTree(a *App) (*Dependencies, error) {
 	dependencies := Dependencies{App: a}
 	for _, dependency := range a.Depends {
-		dependencyApp, err := scoop.getAppFromBucket(dependency.Bucket, dependency.Name)
+		bucket, err := scoop.GetBucket(dependency.Bucket)
 		if err != nil {
-			return nil, fmt.Errorf("error getting info about dependency: %w", err)
+			return nil, fmt.Errorf("couldn't get dependency bucket: %w", err)
 		}
 
+		dependencyApp := bucket.GetApp(dependency.Name)
 		subTree, err := scoop.DependencyTree(dependencyApp)
 		if err != nil {
 			return nil, fmt.Errorf("error getting sub dependency tree: %w", err)
@@ -353,12 +408,12 @@ func (scoop *Scoop) DependencyTree(a *App) (*Dependencies, error) {
 	return &dependencies, nil
 }
 
-func (scoop *Scoop) ReverseDependencyTree(apps []*App, a *App) *Dependencies {
-	dependencies := Dependencies{App: a}
-	for _, app := range apps {
-		for _, dep := range app.Depends {
-			if dep.Name == a.Name {
-				subTree := scoop.ReverseDependencyTree(apps, a)
+func (scoop *Scoop) ReverseDependencyTree(apps []*App, app *App) *Dependencies {
+	dependencies := Dependencies{App: app}
+	for _, potentialDependant := range apps {
+		for _, dep := range potentialDependant.Depends {
+			if dep.Name == app.Name {
+				subTree := scoop.ReverseDependencyTree(apps, potentialDependant)
 				dependencies.Values = append(dependencies.Values, subTree)
 			}
 			break

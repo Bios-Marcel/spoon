@@ -103,7 +103,7 @@ This command accepts one or two arguments. Either a known bucket (see spoon buck
 					os.Exit(1)
 				}
 
-				var bucketsToDelete []scoop.Bucket
+				var bucketsToDelete []*scoop.Bucket
 			BUCKET_LOOP:
 				for _, bucket := range buckets {
 					for _, arg := range args {
