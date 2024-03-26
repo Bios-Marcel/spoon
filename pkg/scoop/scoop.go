@@ -63,11 +63,15 @@ func (b *Bucket) ManifestDir() string {
 }
 
 func (b *Bucket) GetApp(name string) *App {
-	return &App{
-		Bucket:       b,
-		Name:         name,
-		manifestPath: filepath.Join(b.ManifestDir(), name+".json"),
+	potentialManifest := filepath.Join(b.ManifestDir(), name+".json")
+	if _, err := os.Stat(potentialManifest); err == nil {
+		return &App{
+			Bucket:       b,
+			Name:         name,
+			manifestPath: potentialManifest,
+		}
 	}
+	return nil
 }
 
 // Remove removes the bucket, but doesn't unisntall any of its installed
@@ -97,31 +101,16 @@ func ParseAppIdentifier(name string) (string, string, string) {
 
 var ErrBucketNotFound = errors.New("bucket not found")
 
-func (scoop *Scoop) GetBucket(name string) (*Bucket, error) {
-	bucketsDir := scoop.GetBucketsDir()
-	bucketPaths, err := getDirFilenames(bucketsDir)
-	if err != nil {
-		return nil, fmt.Errorf("error reaeding bucket names: %w", err)
-	}
-
-	for _, bucketPath := range bucketPaths {
-		bucket := &Bucket{rootDir: filepath.Join(bucketsDir, bucketPath)}
-		if bucket.Name() == name {
-			return bucket, nil
-		}
-	}
-
-	return nil, fmt.Errorf("'%s': %w", name, err)
+// GetBucket constructs a new bucket object pointing at the given bucket. At
+// this point, the bucket might not necessarily exist.
+func (scoop *Scoop) GetBucket(name string) *Bucket {
+	return &Bucket{rootDir: filepath.Join(scoop.GetBucketsDir(), name)}
 }
 
 func (scoop *Scoop) GetAvailableApp(name string) (*App, error) {
 	bucket, name, _ := ParseAppIdentifier(name)
 	if bucket != "" {
-		bucket, err := scoop.GetBucket(bucket)
-		if err != nil {
-			return nil, fmt.Errorf("error getting bucket: %w", err)
-		}
-		return bucket.GetApp(name), nil
+		return scoop.GetBucket(bucket).GetApp(name), nil
 	}
 
 	buckets, err := scoop.GetLocalBuckets()
@@ -129,36 +118,62 @@ func (scoop *Scoop) GetAvailableApp(name string) (*App, error) {
 		return nil, fmt.Errorf("error getting local buckets: %w", err)
 	}
 	for _, bucket := range buckets {
-		// Since we are on windows, this is case insensitive.
-		potentialManifest := filepath.Join(bucket.ManifestDir(), name+".json")
-		if _, err := os.Stat(potentialManifest); err == nil {
-			return &App{
-				Bucket:       bucket,
-				Name:         name,
-				manifestPath: potentialManifest,
-			}, nil
+		if app := bucket.GetApp(name); app != nil {
+			return app, nil
 		}
 	}
 	return nil, nil
 }
 
-func (scoop *Scoop) GetInstalledApp(name string) (*App, error) {
+func (scoop *Scoop) GetInstalledApp(name string) (*InstalledApp, error) {
+	iter := jsoniter.Parse(jsoniter.ConfigFastest, nil, 256)
+	return scoop.getInstalledApp(iter, name)
+}
+
+func (scoop *Scoop) getInstalledApp(iter *jsoniter.Iterator, name string) (*InstalledApp, error) {
 	_, name, _ = ParseAppIdentifier(name)
 	name = strings.ToLower(name)
 
-	manifestPath := filepath.Join(scoop.GetAppsDir(), name, "current", "manifest.json")
-	if _, err := os.Stat(manifestPath); err != nil {
+	appDir := filepath.Join(scoop.GetAppsDir(), name, "current")
+
+	installJson, err := os.Open(filepath.Join(appDir, "install.json"))
+	if err != nil {
+		// App not installed.
 		if os.IsNotExist(err) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("error stat-ing manifest: %w", err)
+		return nil, fmt.Errorf("error reading install.json: %w", err)
 	}
 
-	// FIXME Check if installation stems from correct bucket!
+	iter.Reset(installJson)
 
-	return &App{
-		Name:         name,
-		manifestPath: manifestPath,
+	var (
+		bucketName string
+		hold       bool
+	)
+	for field := iter.ReadObject(); field != ""; field = iter.ReadObject() {
+		switch field {
+		case "bucket":
+			bucketName = iter.ReadString()
+		case "hold":
+			hold = iter.ReadBool()
+		default:
+			iter.Skip()
+		}
+	}
+
+	var bucket *Bucket
+	if bucketName != "" {
+		bucket = scoop.GetBucket(bucketName)
+	}
+
+	return &InstalledApp{
+		Hold: hold,
+		App: &App{
+			Bucket:       bucket,
+			Name:         name,
+			manifestPath: filepath.Join(appDir, "manifest.json"),
+		},
 	}, nil
 }
 
@@ -238,6 +253,20 @@ type App struct {
 
 	Bucket       *Bucket `json:"-"`
 	manifestPath string
+}
+
+type InstalledApp struct {
+	*App
+	// Hold indicates whether the app should be kept on the currently installed
+	// version. It's versioning pinning.
+	Hold bool
+}
+
+type OutdatedApp struct {
+	*InstalledApp
+
+	ManifestDeleted bool
+	LatestVersion   string
 }
 
 type EnvVar struct {
@@ -393,11 +422,7 @@ type Dependencies struct {
 func (scoop *Scoop) DependencyTree(a *App) (*Dependencies, error) {
 	dependencies := Dependencies{App: a}
 	for _, dependency := range a.Depends {
-		bucket, err := scoop.GetBucket(dependency.Bucket)
-		if err != nil {
-			return nil, fmt.Errorf("couldn't get dependency bucket: %w", err)
-		}
-
+		bucket := scoop.GetBucket(dependency.Bucket)
 		dependencyApp := bucket.GetApp(dependency.Name)
 		subTree, err := scoop.DependencyTree(dependencyApp)
 		if err != nil {
@@ -422,18 +447,112 @@ func (scoop *Scoop) ReverseDependencyTree(apps []*App, app *App) *Dependencies {
 	return &dependencies
 }
 
-func (scoop *Scoop) GetInstalledApps() ([]App, error) {
+func (scoop *Scoop) GetOutdatedApps() ([]*OutdatedApp, error) {
+	installJSONPaths, err := filepath.Glob(filepath.Join(scoop.GetAppsDir(), "*/current/install.json"))
+	if err != nil {
+		return nil, fmt.Errorf("error globbing manifests: %w", err)
+	}
+
+	iter := jsoniter.Parse(jsoniter.ConfigFastest, nil, 1024*128)
+
+	outdated := make([]*OutdatedApp, 0, len(installJSONPaths))
+	for _, installJSON := range installJSONPaths {
+		file, err := os.Open(installJSON)
+		if err != nil {
+			return nil, fmt.Errorf("error opening '%s': %w", installJSON, err)
+		}
+		defer file.Close()
+
+		iter.Reset(file)
+
+		var bucket string
+		for field := iter.ReadObject(); field != ""; field = iter.ReadObject() {
+			if field == "bucket" {
+				bucket = iter.ReadString()
+				break
+			}
+
+			iter.Skip()
+		}
+
+		appDir := filepath.Dir(filepath.Dir(installJSON))
+
+		// Apps with autogenerated manifests lose their connection to their
+		// original bucket. However, we can still search all buckets to do a
+		// guess.
+		appName := filepath.Base(appDir)
+		if bucket != "" {
+			// FIXME Add info somewhere.
+			appName = bucket + "/" + appName
+		}
+
+		// We don't access the bucket directly, as this function supports
+		// searching with and without bucket.
+		app, err := scoop.GetAvailableApp(appName)
+		if err != nil {
+			return nil, fmt.Errorf("error getting app '%s' from bucket: %w", appName, err)
+		}
+
+		installedApp, err := scoop.getInstalledApp(iter, appName)
+		if err != nil {
+			return nil, fmt.Errorf("error getting installed app '%s': %w", appName, err)
+		}
+
+		if err := installedApp.LoadDetailsWithIter(iter, DetailFieldVersion); err != nil {
+			return nil, fmt.Errorf("error loading installed app details: %w", err)
+		}
+
+		// Valid, as we can have an app installed that was deleted from the
+		// bucket.
+		if app != nil {
+			if err := app.LoadDetailsWithIter(iter, DetailFieldVersion); err != nil {
+				return nil, fmt.Errorf("error loading app details: %w", err)
+			}
+		}
+
+		var latestVersion string
+		if app != nil {
+			latestVersion = app.Version
+		}
+		if installedApp.Version != latestVersion {
+			outdated = append(outdated, &OutdatedApp{
+				ManifestDeleted: app == nil,
+				InstalledApp:    installedApp,
+				LatestVersion:   latestVersion,
+			})
+		}
+	}
+	return outdated, nil
+}
+
+func (scoop *Scoop) GetInstalledApps() ([]*InstalledApp, error) {
 	manifestPaths, err := filepath.Glob(filepath.Join(scoop.GetAppsDir(), "*/current/manifest.json"))
 	if err != nil {
 		return nil, fmt.Errorf("error globbing manifests: %w", err)
 	}
 
-	apps := make([]App, len(manifestPaths))
+	apps := make([]*InstalledApp, len(manifestPaths))
 	for index, manifestPath := range manifestPaths {
-		apps[index] = App{
+		// FIXME Check if installation stems from correct bucket!
+		installJson := make(map[string]any)
+		bytes, err := os.ReadFile(filepath.Join(filepath.Dir(manifestPath), "install.json"))
+		if err != nil {
+			return nil, fmt.Errorf("error reading install.json: %w", err)
+		}
+		if err := json.Unmarshal(bytes, &installJson); err != nil {
+			return nil, fmt.Errorf("error unmarshalling: %w", err)
+		}
+
+		var bucket *Bucket
+		bucketName := installJson["bucket"]
+		if bucketNameStr, ok := bucketName.(string); ok {
+			bucket = scoop.GetBucket(bucketNameStr)
+		}
+		apps[index] = &InstalledApp{App: &App{
+			Bucket:       bucket,
 			Name:         strings.TrimSuffix(filepath.Base(filepath.Dir(filepath.Dir(manifestPath))), ".json"),
 			manifestPath: manifestPath,
-		}
+		}}
 	}
 
 	return apps, nil

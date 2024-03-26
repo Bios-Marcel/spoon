@@ -5,7 +5,10 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/fatih/color"
+	"github.com/rodaine/table"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 // RunE wraps the actual runE passed to cobra. This allows us to Silence the
@@ -52,6 +55,30 @@ func getFlags(cmd *cobra.Command, flags ...string) ([]string, error) {
 	}
 
 	return outFlags, nil
+}
+
+// createTable is a helper that creates a table and returns the width and
+// padding, for calculations required in columns.
+func createTable(columns ...string) (table.Table, int, int) {
+	terminalWidth, _, err := term.GetSize(int(os.Stdout.Fd()))
+	// Not really important, if we cant get the size, we'll render fixed
+	// width.
+	if err != nil {
+		// Random value that I assume might work well.
+		terminalWidth = 130
+	}
+
+	columnsAny := make([]any, len(columns))
+	for index, column := range columns {
+		columnsAny[index] = column
+	}
+	headerFmt := color.New(color.FgGreen, color.Underline).SprintfFunc()
+	padding := 2
+	table := table.
+		New(columnsAny...).
+		WithHeaderFormatter(headerFmt).
+		WithPadding(padding)
+	return table, terminalWidth, padding
 }
 
 // equals checks whether `whole` contains substring `find`, optionally ignoring

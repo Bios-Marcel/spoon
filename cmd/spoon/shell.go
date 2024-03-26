@@ -343,7 +343,7 @@ func shellCmd() *cobra.Command {
 				// environment for each apps. Some apps require extra
 				// environment variables and some apps use env_add_path instead
 				// of specifying shims.
-				var app *scoop.App
+				var app *scoop.InstalledApp
 				app, err = tempScoop.GetInstalledApp(dependency)
 				if err != nil {
 					break

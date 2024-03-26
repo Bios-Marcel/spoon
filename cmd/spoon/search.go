@@ -14,9 +14,7 @@ import (
 
 	"github.com/Bios-Marcel/spoon/pkg/scoop"
 	jsoniter "github.com/json-iterator/go"
-	"github.com/rodaine/table"
 	"github.com/spf13/cobra"
-	"golang.org/x/term"
 )
 
 type match struct {
@@ -131,18 +129,8 @@ func searchCmd() *cobra.Command {
 				// We always sort for "plain", as plain is meant for people.
 				sort(matches, must(cmd.Flags().GetStringSlice("sort")))
 
-				terminalWidth, _, err := term.GetSize(int(os.Stdout.Fd()))
-				// Not really important, if we cant get the size, we'll render fixed
-				// width.
-				if err != nil {
-					// Random value that I assume might work well.
-					terminalWidth = 130
-				}
-
-				padding := 2
-				tbl := table.
-					New("Name", "Version", "Bucket", "Description").
-					WithPadding(padding)
+				tbl, tableWidth, padding := createTable(
+					"Name", "Version", "Bucket", "Description")
 
 				// We'll precalculcate the size and assume ASCII mostly. If UTF-8
 				// is present, it'll cause premature truncation, but that's not a
@@ -158,7 +146,7 @@ func searchCmd() *cobra.Command {
 					maxBucketLen = max(maxBucketLen, len(match.Bucket))
 				}
 
-				descriptionWidth := max(10, terminalWidth-maxNameLen-maxBucketLen-maxVersionLen-(padding*4))
+				descriptionWidth := max(10, tableWidth-maxNameLen-maxBucketLen-maxVersionLen-(padding*4))
 				for _, match := range matches {
 					desc := match.Description
 					if len(desc) > descriptionWidth {
