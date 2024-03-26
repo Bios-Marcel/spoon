@@ -43,10 +43,10 @@ All unknown commands are delegated to scoop by default.
 | search     | Native              | ✅            | * Performance improvements<br/>* JSON output<br/> * Search configuration |
 | install    | Wrapper             | ✅            |                                                                          |
 | uninstall  | Wrapper             | ✅            | * Terminate running processes                                            |
-| update     | Wrapper             | ✅            |                                                                          |
+| update     | Partially Native    | ✅            | * Now invokes `status` after updating buckets                            |
 | bucket     | Wrapper             | ✅            | * `bucket rm` now supports multiple buckets to delete at once            |
 | cat        | Native              | ✅            | * Alias `manifest`                                                       |
-| status     | Wrapper             | ✅            |                                                                          |
+| status     | Native              | ✅            | * `--local` has been deleted (It's always local now)<br/>Shows outdated / installed things scoop didn't |
 | info       | Wrapper             | ✅            |                                                                          |
 | depends    | Native (WIP)        | ✅            | * Adds `--reverse/-r` flag<br/>* Prints an ASCII tree by default         |
 | list       |                     |              |                                                                          |
