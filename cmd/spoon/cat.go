@@ -21,29 +21,31 @@ func catCmd() *cobra.Command {
 		Aliases:           []string{"manifest"},
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: autocompleteAvailable,
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: RunE(func(cmd *cobra.Command, args []string) error {
 			defaultScoop, err := scoop.NewScoop()
 			if err != nil {
-				fmt.Println("error getting default scoop:", err)
-				os.Exit(1)
+				return fmt.Errorf("error getting default scoop: %w", err)
 			}
+
 			app, err := defaultScoop.GetAvailableApp(args[0])
 			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
+				return fmt.Errorf("error finding app: %w", err)
+			}
+
+			if app == nil {
+				return fmt.Errorf("the app couldn't be found")
 			}
 
 			handle, err := os.Open(app.ManifestPath())
 			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
+				return fmt.Errorf("error loading app data: %w", err)
 			}
 
 			_, err = io.Copy(os.Stdout, handle)
 			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
+				return fmt.Errorf("error reading file: %w", err)
 			}
-		},
+			return nil
+		}),
 	}
 }
