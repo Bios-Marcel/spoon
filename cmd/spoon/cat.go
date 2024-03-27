@@ -33,7 +33,14 @@ func catCmd() *cobra.Command {
 			}
 
 			if app == nil {
-				return fmt.Errorf("the app couldn't be found")
+				installedApp, err := defaultScoop.GetInstalledApp(args[0])
+				if err != nil {
+					return fmt.Errorf("error finding app: %w", err)
+				}
+				if installedApp == nil {
+					return fmt.Errorf("the app couldn't be found")
+				}
+				app = installedApp.App
 			}
 
 			handle, err := os.Open(app.ManifestPath())
