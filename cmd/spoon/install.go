@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/Bios-Marcel/spoon/pkg/scoop"
 	"github.com/spf13/cobra"
 )
 
@@ -37,7 +38,17 @@ func installCmd() *cobra.Command {
 	cmd.Flags().BoolP("no-cache", "k", false, "Don't use download cache")
 	cmd.Flags().BoolP("no-update-scoop", "u", false, "Don't use scoop before i if it's outdated")
 	cmd.Flags().BoolP("skip", "s", false, "Skip hash validation")
-	cmd.Flags().BoolP("arch", "a", false, "use specified architecture, if app supports it")
+	// We default to our system architecture here. If scoop encounters an
+	// unsupported arch, it is ignored. We'll do the same.
+	cmd.Flags().StringP("arch", "a", string(SystemArchitecture),
+		"use specified architecture, if app supports it")
+	cmd.RegisterFlagCompletionFunc("arch", cobra.FixedCompletions(
+		[]string{
+			string(scoop.ArchitectureKey32Bit),
+			string(scoop.ArchitectureKey64Bit),
+			string(scoop.ArchitectureKeyARM64),
+		},
+		cobra.ShellCompDirectiveDefault))
 
 	return cmd
 }
