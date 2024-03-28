@@ -193,6 +193,8 @@ LOOP:
 			scoop.DetailFieldBin,
 			scoop.DetailFieldDescription,
 			scoop.DetailFieldVersion,
+			scoop.DetailFieldShortcuts,
+			scoop.DetailFieldArchitecture,
 		); err != nil {
 			fmt.Printf("Error loading details for '%s': %s\n", job.app.ManifestPath(), err)
 			os.Exit(1)
@@ -205,11 +207,17 @@ LOOP:
 		}
 
 		if searchBin {
-			for _, bin := range app.Bin {
-				if contains(filepath.Base(bin.Name), search, caseInsensitive) ||
-					contains(filepath.Base(bin.Alias), search, caseInsensitive) {
-					matches = append(matches, newMatch(app, job.bucket))
-					continue LOOP
+			if matchBin(app.Bin, search, caseInsensitive) ||
+				matchBin(app.Shortcuts, search, caseInsensitive) {
+				continue LOOP
+			}
+
+			if app.Architecture != nil {
+				if arch := app.Architecture[SystemArchitecture]; arch != nil {
+					if matchBin(arch.Bin, search, caseInsensitive) ||
+						matchBin(arch.Shortcuts, search, caseInsensitive) {
+						continue LOOP
+					}
 				}
 			}
 		}
@@ -221,6 +229,16 @@ LOOP:
 	}
 
 	return matches
+}
+
+func matchBin(bins []scoop.Bin, search string, caseInsensitive bool) bool {
+	for _, bin := range bins {
+		if contains(filepath.Base(bin.Name), search, caseInsensitive) ||
+			contains(filepath.Base(bin.Alias), search, caseInsensitive) {
+			return true
+		}
+	}
+	return false
 }
 
 // queueJobs will find all available apps and admit them into the search.

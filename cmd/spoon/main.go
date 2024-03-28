@@ -5,8 +5,12 @@ import (
 	"os"
 	"strings"
 
+	"github.com/Bios-Marcel/spoon/internal/windows"
+	"github.com/Bios-Marcel/spoon/pkg/scoop"
 	"github.com/spf13/cobra"
 )
+
+var SystemArchitecture = scoop.ArchitectureKey(windows.Arch())
 
 func main() {
 	// This seems to provide no value whatsoever, it seemingly doesn't even do

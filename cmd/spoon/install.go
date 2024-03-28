@@ -37,7 +37,7 @@ func installCmd() *cobra.Command {
 	cmd.Flags().BoolP("no-cache", "k", false, "Don't use download cache")
 	cmd.Flags().BoolP("no-update-scoop", "u", false, "Don't use scoop before i if it's outdated")
 	cmd.Flags().BoolP("skip", "s", false, "Skip hash validation")
-	cmd.Flags().BoolP("arch", "a", false, "use specified architechture, if app supports it")
+	cmd.Flags().BoolP("arch", "a", false, "use specified architecture, if app supports it")
 
 	return cmd
 }

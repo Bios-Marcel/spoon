@@ -242,14 +242,27 @@ func (scoop *Scoop) GetLocalBuckets() ([]*Bucket, error) {
 // example when you are using an auto-generated manifest for a version that's
 // not available anymore. In that case, scoop will lose the bucket information.
 type App struct {
-	Name        string       `json:"name"`
-	Description string       `json:"description"`
-	Version     string       `json:"version"`
-	Notes       string       `json:"notes"`
-	Bin         []Bin        `json:"bin"`
-	Depends     []Dependency `json:"depends"`
-	EnvAddPath  []string     `json:"env_add_path"`
-	EnvSet      []EnvVar     `json:"env_set"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Version     string `json:"version"`
+	Notes       string `json:"notes"`
+
+	Bin        []Bin    `json:"bin"`
+	Shortcuts  []Bin    `json:"shortcuts"`
+	EnvAddPath []string `json:"env_add_path"`
+	EnvSet     []EnvVar `json:"env_set"`
+
+	Depends      []Dependency                      `json:"depends"`
+	URL          []string                          `json:"url"`
+	Architecture map[ArchitectureKey]*Architecture `json:"architecture"`
+	InnoSetup    bool                              `json:"innosetup"`
+	Installer    *Installer                        `json:"installer"`
+	PreInstall   []string                          `json:"pre_install"`
+	PostInstall  []string                          `json:"post_install"`
+	ExtractTo    []string                          `json:"extract_to"`
+	// ExtractDir specifies which dir should be extracted from the downloaded
+	// archive. However, there might be more URLs than there are URLs.
+	ExtractDir []string `json:"extract_dir"`
 
 	Bucket       *Bucket `json:"-"`
 	manifestPath string
@@ -284,18 +297,72 @@ type Bin struct {
 	Args  []string
 }
 
+type ArchitectureKey string
+
+const (
+	// Architecture32Bit is for x386 (intel/amd). It is the default if no arch
+	// has been specified.
+	ArchitectureKey32Bit ArchitectureKey = "32bit"
+	// Architecture32Bit is for x686 (intel/amd)
+	ArchitectureKey64Bit ArchitectureKey = "64bit"
+	ArchitectureKeyARM64 ArchitectureKey = "arm64"
+)
+
+type Architecture struct {
+	Items []ArchitectureItem `json:"items"`
+
+	Bin       []Bin
+	Shortcuts []Bin
+
+	// Installer replaces MSI
+	Installer Installer
+
+	// PreInstall contains a list of commands to execute before installation.
+	// Note that PreUninstall isn't supported in ArchitectureItem, even though
+	// Uninstaller is supported.
+	PreInstall []string
+	// PreInstall contains a list of commands to execute after installation.
+	// Note that PostUninstall isn't supported in ArchitectureItem, even though
+	// Uninstaller is supported.
+	PostInstall []string
+}
+
+type ArchitectureItem struct {
+	URL        string
+	Hash       string
+	ExtractDir string
+}
+
+type Installer struct {
+	// File is the installer executable. If not specified, this will
+	// autoamtically be set to the last item of the URLs.
+	File   string
+	Script []string
+	Args   []string
+	Keep   bool
+}
+
 func (a App) ManifestPath() string {
 	return a.manifestPath
 }
 
 const (
-	DetailFieldBin         = "bin"
-	DetailFieldDescription = "description"
-	DetailFieldVersion     = "version"
-	DetailFieldNotes       = "notes"
-	DetailFieldDepends     = "depends"
-	DetailFieldEnvSet      = "env_set"
-	DetailFieldEnvAddPath  = "env_add_path"
+	DetailFieldBin          = "bin"
+	DetailFieldShortcuts    = "shortcuts"
+	DetailFieldUrl          = "url"
+	DetailFieldArchitecture = "architecture"
+	DetailFieldDescription  = "description"
+	DetailFieldVersion      = "version"
+	DetailFieldNotes        = "notes"
+	DetailFieldDepends      = "depends"
+	DetailFieldEnvSet       = "env_set"
+	DetailFieldEnvAddPath   = "env_add_path"
+	DetailFieldExtractDir   = "extract_dir"
+	DetailFieldExtractTo    = "extract_to"
+	DetailFieldPostInstall  = "post_install"
+	DetailFieldPreInstall   = "pre_install"
+	DetailFieldInstaller    = "installer"
+	DetailFieldInnoSetup    = "innosetup"
 )
 
 // LoadDetails will load additional data regarding the manifest, such as
@@ -329,32 +396,55 @@ func (a *App) LoadDetailsWithIter(iter *jsoniter.Iterator, fields ...string) err
 			a.Description = iter.ReadString()
 		case DetailFieldVersion:
 			a.Version = iter.ReadString()
+		case DetailFieldUrl:
+			a.URL = parseStringOrArray(iter)
+		case DetailFieldShortcuts:
+			a.Shortcuts = parseBin(iter)
 		case DetailFieldBin:
-			// Array at top level to create multiple entries
-			if iter.WhatIsNext() == jsoniter.ArrayValue {
-				for iter.ReadArray() {
-					// There are nested arrays, for shim creation, with format:
-					// binary alias [args...]
-					if iter.WhatIsNext() == jsoniter.ArrayValue {
-						var bin Bin
-						if iter.ReadArray() {
-							bin.Name = iter.ReadString()
-						}
-						if iter.ReadArray() {
-							bin.Alias = iter.ReadString()
-						}
-						for iter.ReadArray() {
-							bin.Args = append(bin.Args, iter.ReadString())
-						}
-						a.Bin = append(a.Bin, bin)
-					} else {
-						// String in the root level array to add to path
-						a.Bin = append(a.Bin, Bin{Name: iter.ReadString()})
+			a.Bin = parseBin(iter)
+		case DetailFieldArchitecture:
+			// Preallocate to 3, as we support at max 3 architectures
+			a.Architecture = make(map[ArchitectureKey]*Architecture, 3)
+			for arch := iter.ReadObject(); arch != ""; arch = iter.ReadObject() {
+				var archValue Architecture
+				a.Architecture[ArchitectureKey(arch)] = &archValue
+
+				var urls, hashes, extractDirs []string
+				for field := iter.ReadObject(); field != ""; field = iter.ReadObject() {
+					switch field {
+					case "url":
+						urls = parseStringOrArray(iter)
+					case "hash":
+						hashes = parseStringOrArray(iter)
+					case "extract_dir":
+						extractDirs = parseStringOrArray(iter)
+					case "bin":
+						archValue.Bin = parseBin(iter)
+					case "shortcuts":
+						archValue.Shortcuts = parseBin(iter)
+					default:
+						iter.Skip()
 					}
 				}
-			} else {
-				// String vaue at root level to add to path.
-				a.Bin = []Bin{{Name: iter.ReadString()}}
+
+				// We use non-pointers, as we'll have everything initiliased
+				// already then. It can happen that we have different
+				// extract_dirs, but only one archive, containing both
+				// architectures.
+				archValue.Items = make([]ArchitectureItem, max(len(urls), len(extractDirs)))
+
+				// We assume that we have the same length in each. While this
+				// hasn't been specified in the app manifests wiki page, it's
+				// the seemingly only sensible thing to me.
+				for index, value := range urls {
+					archValue.Items[index].URL = value
+				}
+				for index, value := range hashes {
+					archValue.Items[index].Hash = value
+				}
+				for index, value := range extractDirs {
+					archValue.Items[index].ExtractDir = value
+				}
 			}
 		case DetailFieldDepends:
 			// Array at top level to create multiple entries
@@ -366,18 +456,37 @@ func (a *App) LoadDetailsWithIter(iter *jsoniter.Iterator, fields ...string) err
 				a.Depends = []Dependency{a.parseDependency(iter.ReadString())}
 			}
 		case DetailFieldEnvAddPath:
-			// Array at top level to create multiple entries
-			if iter.WhatIsNext() == jsoniter.ArrayValue {
-				for iter.ReadArray() {
-					a.EnvAddPath = append(a.EnvAddPath, iter.ReadString())
-				}
-			} else {
-				a.EnvAddPath = []string{iter.ReadString()}
-			}
+			a.EnvAddPath = parseStringOrArray(iter)
 		case DetailFieldEnvSet:
 			for key := iter.ReadObject(); key != ""; key = iter.ReadObject() {
 				a.EnvSet = append(a.EnvSet, EnvVar{Key: key, Value: iter.ReadString()})
 			}
+		case DetailFieldInstaller:
+			a.Installer = &Installer{}
+			for field := iter.ReadObject(); field != ""; field = iter.ReadObject() {
+				switch field {
+				case "file":
+					a.Installer.File = iter.ReadString()
+				case "script":
+					a.Installer.Script = parseStringOrArray(iter)
+				case "args":
+					a.Installer.Args = parseStringOrArray(iter)
+				case "keep":
+					a.Installer.Keep = iter.ReadBool()
+				default:
+					iter.Skip()
+				}
+			}
+		case DetailFieldInnoSetup:
+			a.InnoSetup = iter.ReadBool()
+		case DetailFieldPreInstall:
+			a.PreInstall = parseStringOrArray(iter)
+		case DetailFieldPostInstall:
+			a.PostInstall = parseStringOrArray(iter)
+		case DetailFieldExtractDir:
+			a.ExtractDir = parseStringOrArray(iter)
+		case DetailFieldExtractTo:
+			a.ExtractTo = parseStringOrArray(iter)
 		case DetailFieldNotes:
 			if iter.WhatIsNext() == jsoniter.ArrayValue {
 				var lines []string
@@ -397,7 +506,58 @@ func (a *App) LoadDetailsWithIter(iter *jsoniter.Iterator, fields ...string) err
 		return fmt.Errorf("error parsing json: %w", iter.Error)
 	}
 
+	if a.Installer != nil {
+		if len(a.Architecture) > 0 {
+			// FIXME Get Architecvhture
+		} else if len(a.URL) > 0 {
+			a.Installer.File = a.URL[len(a.URL)-1]
+		}
+	}
+
 	return nil
+}
+
+func parseBin(iter *jsoniter.Iterator) []Bin {
+	// Array at top level to create multiple entries
+	if iter.WhatIsNext() == jsoniter.ArrayValue {
+		var bins []Bin
+		for iter.ReadArray() {
+			// There are nested arrays, for shim creation, with format:
+			// binary alias [args...]
+			if iter.WhatIsNext() == jsoniter.ArrayValue {
+				var bin Bin
+				if iter.ReadArray() {
+					bin.Name = iter.ReadString()
+				}
+				if iter.ReadArray() {
+					bin.Alias = iter.ReadString()
+				}
+				for iter.ReadArray() {
+					bin.Args = append(bin.Args, iter.ReadString())
+				}
+				bins = append(bins, bin)
+			} else {
+				// String in the root level array to add to path
+				bins = append(bins, Bin{Name: iter.ReadString()})
+			}
+		}
+		return bins
+	}
+
+	// String value at root level to add to path.
+	return []Bin{{Name: iter.ReadString()}}
+}
+
+func parseStringOrArray(iter *jsoniter.Iterator) []string {
+	if iter.WhatIsNext() == jsoniter.ArrayValue {
+		var val []string
+		for iter.ReadArray() {
+			val = append(val, iter.ReadString())
+		}
+		return val
+	}
+
+	return []string{iter.ReadString()}
 }
 
 func (a App) parseDependency(value string) Dependency {
