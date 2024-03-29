@@ -793,7 +793,13 @@ func (a *App) AvailableVersions() ([]string, error) {
 			return nil, result.Error
 		}
 
-		versions = append(versions, readVersion(iter, result.Data))
+		version := readVersion(iter, result.Data)
+		// We could technically touch the same version in multiple commits.
+		// However, we assume there should be no versions inbetween, hence we
+		// only compare to the last item.
+		if len(versions) == 0 || versions[len(versions)-1] != version {
+			versions = append(versions, version)
+		}
 	}
 	return versions, nil
 }
