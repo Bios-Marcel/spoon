@@ -26,15 +26,20 @@ below.
 
 ## Manual Installation
 
-1. [Install scoop](https://scoop.sh/)
+1. Add required buckets
+  ```ps
+  scoop bucket add extras
+  scoop bucket add biosmarcel "https://github.com/Bios-Marcel/scoopbucket.git"
+  ```
 2. Install spoon
-    ```ps
-    go install github.com/Bios-Marcel/spoon/cmd/spoon@latest
-    ```
-3. Enable autocompletion by adding this to your powershell profile:
-    ```ps
-    spoon completion powershell | Out-String | Invoke-Expression
-    ```
+  ```ps
+  scoop install spoon
+  ```
+
+## Updates
+
+Note that self-updating is *NOT YET* possible. To update, please use `scoop
+update spoon` for now.
 
 ## CLI Progress
 
