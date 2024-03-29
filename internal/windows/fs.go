@@ -6,6 +6,14 @@ import (
 	"os/exec"
 )
 
+func GetDirFilenames(dir string) ([]string, error) {
+	dirHandle, err := os.Open(dir)
+	if err != nil {
+		return nil, err
+	}
+	return dirHandle.Readdirnames(-1)
+}
+
 // CreateJunction will create multiple junctions. Each pair reflects one
 // junction ([2]string{existing_dir, link_location}). A junction as a hardlink
 // to a directory. This means, that we hardlink to the drive-sections, which

@@ -14,16 +14,9 @@ import (
 	"strings"
 
 	"github.com/Bios-Marcel/spoon/internal/git"
+	"github.com/Bios-Marcel/spoon/internal/windows"
 	jsoniter "github.com/json-iterator/go"
 )
-
-func getDirFilenames(dir string) ([]string, error) {
-	dirHandle, err := os.Open(dir)
-	if err != nil {
-		return nil, err
-	}
-	return dirHandle.Readdirnames(-1)
-}
 
 type Bucket struct {
 	name        string
@@ -186,7 +179,7 @@ func (scoop *Scoop) getInstalledApp(iter *jsoniter.Iterator, name string) (*Inst
 // parallelisation where desired.
 func (b *Bucket) AvailableApps() ([]*App, error) {
 	manifestDir := b.ManifestDir()
-	names, err := getDirFilenames(manifestDir)
+	names, err := windows.GetDirFilenames(manifestDir)
 	if err != nil {
 		return nil, fmt.Errorf("error getting bucket entries: %w", err)
 	}
@@ -239,7 +232,7 @@ func (scoop *Scoop) GetKnownBuckets() ([]KnownBucket, error) {
 
 // GetLocalBuckets is an API representation of locally installed buckets.
 func (scoop *Scoop) GetLocalBuckets() ([]*Bucket, error) {
-	bucketPaths, err := getDirFilenames(scoop.GetBucketsDir())
+	bucketPaths, err := windows.GetDirFilenames(scoop.GetBucketsDir())
 	if err != nil {
 		return nil, fmt.Errorf("error reaeding bucket names: %w", err)
 	}
