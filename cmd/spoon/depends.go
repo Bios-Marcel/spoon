@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Bios-Marcel/spoon/internal/cli"
 	"github.com/Bios-Marcel/spoon/pkg/scoop"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/spf13/cobra"
@@ -14,7 +15,7 @@ func dependsCmd() *cobra.Command {
 		// TODO USage
 		Use:   "depends {app}",
 		Short: "Show dependency tree or reverse dependency tree of an app",
-		Example: examples(
+		Example: cli.FormatUsageExample(
 			"spoon depends poetry",
 			"spoon depends -r python",
 		),

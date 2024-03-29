@@ -2,11 +2,25 @@ package cli
 
 import (
 	"os"
+	"strings"
 
 	"github.com/fatih/color"
 	"github.com/rodaine/table"
 	"golang.org/x/term"
 )
+
+func FormatUsageExample(examples ...string) string {
+	var builder strings.Builder
+	for index, example := range examples {
+		builder.WriteString("  ")
+		builder.WriteString(example)
+		if index != len(examples)-1 {
+			builder.WriteRune('\n')
+		}
+	}
+
+	return builder.String()
+}
 
 // CreateTable is a helper that creates a table and returns the width and
 // padding, for calculations required in columns.

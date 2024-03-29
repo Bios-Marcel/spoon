@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/Bios-Marcel/spoon/internal/cli"
 	"github.com/Bios-Marcel/spoon/pkg/scoop"
 	"github.com/spf13/cobra"
 )
@@ -14,7 +15,7 @@ func catCmd() *cobra.Command {
 		Use:   "cat {app}",
 		Short: "Print JSON manifest of an available app",
 		Long:  "Print JSON manifest of an available app. Optionally this command accepts a URL to a manifest file.",
-		Example: examples(
+		Example: cli.FormatUsageExample(
 			"spoon cat 7zip",
 			"spoon cat https://raw.githubusercontent.com/ScoopInstaller/Main/master/bucket/git.json",
 		),

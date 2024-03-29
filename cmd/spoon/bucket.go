@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/Bios-Marcel/spoon/internal/cli"
 	"github.com/Bios-Marcel/spoon/internal/collections"
 	"github.com/Bios-Marcel/spoon/pkg/scoop"
 	"github.com/spf13/cobra"
@@ -27,7 +28,7 @@ func bucketCmd() *cobra.Command {
 Add a bucket to scoop. This allows you to install apps from that bucket.
 
 This command accepts one or two arguments. Either a known bucket (see spoon bucket known) or "bucketname" "url".`),
-			Example: examples(
+			Example: cli.FormatUsageExample(
 				"spoon bucket add games",
 				"spoon bucket custom https://github.com/user/repo.git",
 			),
@@ -64,7 +65,7 @@ This command accepts one or two arguments. Either a known bucket (see spoon buck
 				"uninstall",
 			},
 			Short: "Removes bucket(s) from scoop",
-			Example: examples(
+			Example: cli.FormatUsageExample(
 				"spoon bucket rm games",
 				"spoon bucket rm games extras java",
 			),
