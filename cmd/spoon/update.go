@@ -39,6 +39,7 @@ func updateCmd() *cobra.Command {
 		Aliases: []string{
 			"upgrade",
 			"up",
+			"refresh",
 		},
 		Args:              cobra.ArbitraryArgs,
 		ValidArgsFunction: autocompleteInstalled,
