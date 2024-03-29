@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -9,159 +8,18 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"syscall"
-	"unsafe"
 
+	"github.com/Bios-Marcel/spoon/internal/windows"
 	"github.com/Bios-Marcel/spoon/pkg/scoop"
 	"github.com/spf13/cobra"
 )
-
-var (
-	modKernel32                  = syscall.NewLazyDLL("kernel32.dll")
-	procCloseHandle              = modKernel32.NewProc("CloseHandle")
-	procCreateToolhelp32Snapshot = modKernel32.NewProc("CreateToolhelp32Snapshot")
-	procProcess32First           = modKernel32.NewProc("Process32FirstW")
-	procProcess32Next            = modKernel32.NewProc("Process32NextW")
-)
-
-// PROCESSENTRY32 is a process as defined by Windows. We've simple padded
-// everything with unused field, to be able to parse everything and indicate
-// that the fields are unused at the same time.
-type PROCESSENTRY32 struct {
-	Size            uint32
-	_               uint32
-	ProcessID       uint32
-	_               uintptr
-	_               uint32
-	_               uint32
-	ParentProcessID uint32
-	_               int32
-	_               uint32
-	// ExeFile is expected to be at max 260 chars, as windows by default doesn't
-	// support long paths. While this could fail, we'll ignore this for now, as
-	// it is unlikely to happen.
-	ExeFile [260]uint16
-}
-
-func GetShellExecutable() (string, error) {
-	parentProcess, err := os.FindProcess(os.Getppid())
-	if err != nil {
-		return "", fmt.Errorf("error getting parent process: %w", err)
-	}
-
-	handle, _, _ := procCreateToolhelp32Snapshot.Call(0x00000002, 0)
-	if handle < 0 {
-		return "", syscall.GetLastError()
-	}
-	defer procCloseHandle.Call(handle)
-
-	var entry PROCESSENTRY32
-	entry.Size = uint32(unsafe.Sizeof(entry))
-	ret, _, _ := procProcess32First.Call(handle, uintptr(unsafe.Pointer(&entry)))
-	if ret == 0 {
-		return "", errors.New("error reading process entry")
-	}
-
-	for {
-		if int(entry.ProcessID) == parentProcess.Pid {
-			var name string
-			for index, char := range entry.ExeFile {
-				if char == 0 {
-					name = syscall.UTF16ToString(entry.ExeFile[:index])
-					break
-				}
-			}
-
-			if name == "" {
-				return "", errors.New("error reading process name")
-			}
-
-			return name, nil
-		}
-
-		ret, _, _ := procProcess32Next.Call(handle, uintptr(unsafe.Pointer(&entry)))
-		if ret == 0 {
-			break
-		}
-	}
-
-	return "", errors.New("shell not found")
-}
-
-// createJunction will create multiple junctions. Each pair reflects one
-// junction ([2]string{from, to}).
-func createJunctions(junctions ...[2]string) error {
-	for _, junction := range junctions {
-		from := junction[0]
-		to := junction[1]
-		// No need to re-create a junction
-		if _, err := os.Stat(to); err == nil {
-			return nil
-		}
-
-		cmd := exec.Command("cmd", "/c", "mklink", "/J", to, from)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		cmd.Stdin = os.Stdin
-
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("error creating junction to '%s': %w", to, err)
-		}
-	}
-
-	return nil
-}
-
-func GetPersistentEnvValues() (map[string]string, error) {
-	cmd := exec.Command(
-		"powershell",
-		"-NoProfile",
-		"[Environment]::GetEnvironmentVariables('User') | ConvertTo-Json",
-	)
-	pipe, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, fmt.Errorf("error opening pipe: %w", err)
-	}
-
-	var cmdErr error
-	go func() {
-		cmdErr = cmd.Run()
-	}()
-
-	decoder := json.NewDecoder(pipe)
-	result := make(map[string]string)
-	if err := decoder.Decode(&result); err != nil {
-		return nil, fmt.Errorf("error decoding environment variables: %w", err)
-	}
-
-	if cmdErr != nil {
-		return nil, fmt.Errorf("error retrieving environment variables: %w", err)
-	}
-
-	return result, nil
-}
-
-// Sets a User-Level Environment variable. An empty value will remove the key
-// completly.
-func SetPersistentEnvValue(key, value string) error {
-	cmd := exec.Command(
-		"powershell",
-		"-NoProfile",
-		"-Command",
-		"[Environment]::SetEnvironmentVariable('"+key+"','"+value+"','User')",
-	)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
-	return cmd.Run()
-}
 
 func restoreEnvVars(vars []scoop.EnvVar) {
 	var envResetErr error
 	for _, envVar := range vars {
 		// We attempt to reset everything as well as we can, even if one
 		// or more calls fail.
-		if err := SetPersistentEnvValue(envVar.Key, envVar.Value); err != nil {
+		if err := windows.SetPersistentEnvValue(envVar.Key, envVar.Value); err != nil {
 			envResetErr = err
 		}
 	}
@@ -234,7 +92,7 @@ func shellCmd() *cobra.Command {
 			// If we are using PowershellCore, we can't user PowershellDesktop
 			// and vice versa, as the module paths will cause conflicts, causing
 			// us to not find `Get-FileHash` for example.
-			shell, err := GetShellExecutable()
+			shell, err := windows.GetShellExecutable()
 			if err != nil {
 				return fmt.Errorf("error determining shell: %w", err)
 			}
@@ -249,7 +107,7 @@ func shellCmd() *cobra.Command {
 				shell = "powershell.exe"
 			}
 
-			oldUserEnv, err := GetPersistentEnvValues()
+			oldUserEnv, err := windows.GetPersistentEnvValues()
 			if err != nil {
 				return fmt.Errorf("error backing up user enviroment: %w", err)
 			}
@@ -308,7 +166,7 @@ func shellCmd() *cobra.Command {
 				return fmt.Errorf("error creating temporary scoop dir: %w", err)
 			}
 
-			if err := createJunctions([][2]string{
+			if err := windows.CreateJunctions([][2]string{
 				{defaultScoop.GetCacheDir(), tempScoop.GetCacheDir()},
 				{defaultScoop.GetScoopInstallationDir(), tempScoop.GetScoopInstallationDir()},
 				{defaultScoop.GetBucketsDir(), tempScoop.GetBucketsDir()},
