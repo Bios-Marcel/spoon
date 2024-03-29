@@ -39,6 +39,7 @@ func main() {
 	rootCmd.AddCommand(updateCmd())
 	rootCmd.AddCommand(bucketCmd())
 	rootCmd.AddCommand(catCmd())
+	rootCmd.AddCommand(versionsCmd())
 	rootCmd.AddCommand(shellCmd())
 	rootCmd.AddCommand(statusCmd())
 	rootCmd.AddCommand(infoCmd())
