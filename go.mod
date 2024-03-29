@@ -9,9 +9,11 @@ require (
 	github.com/json-iterator/go v1.1.12
 	github.com/rodaine/table v1.1.0
 	github.com/spf13/cobra v1.7.0
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 	golang.org/x/term v0.15.0
 )
+
+replace github.com/rodaine/table => github.com/Bios-Marcel/table v0.0.0-20240329131215-10c55b946b41
 
 require (
 	dario.cat/mergo v1.0.0 // indirect

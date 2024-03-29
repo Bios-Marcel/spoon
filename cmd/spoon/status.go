@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Bios-Marcel/spoon/internal/cli"
 	"github.com/Bios-Marcel/spoon/pkg/scoop"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -15,7 +16,7 @@ func status(scoop *scoop.Scoop) error {
 		return fmt.Errorf("error getting installed apps: %w", err)
 	}
 
-	tbl, _, _ := createTable("Name", "Installed Version", "Latest Version", "Missing Dependencies", "Info")
+	tbl, _, _ := cli.CreateTable("Name", "Installed Version", "Latest Version", "Missing Dependencies", "Info")
 
 	for _, app := range apps {
 		var info []string

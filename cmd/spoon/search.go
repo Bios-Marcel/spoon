@@ -12,6 +12,7 @@ import (
 
 	_ "runtime/pprof"
 
+	"github.com/Bios-Marcel/spoon/internal/cli"
 	"github.com/Bios-Marcel/spoon/pkg/scoop"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/spf13/cobra"
@@ -129,7 +130,7 @@ func searchCmd() *cobra.Command {
 				// We always sort for "plain", as plain is meant for people.
 				sort(matches, must(cmd.Flags().GetStringSlice("sort")))
 
-				tbl, tableWidth, padding := createTable(
+				tbl, tableWidth, padding := cli.CreateTable(
 					"Name", "Version", "Bucket", "Description")
 
 				// We'll precalculcate the size and assume ASCII mostly. If UTF-8
