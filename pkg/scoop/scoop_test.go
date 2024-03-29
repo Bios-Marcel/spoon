@@ -17,6 +17,27 @@ func app(t *testing.T, name string) *scoop.App {
 	return app
 }
 
+func Test_ManifestForVersion(t *testing.T) {
+	defaultScoop, err := scoop.NewScoop()
+	require.NoError(t, err)
+
+	app, err := defaultScoop.GetAvailableApp("main/go")
+	require.NoError(t, err)
+
+	t.Run("found", func(t *testing.T) {
+		manifest, err := app.ManifestForVersion("1.22.0")
+		require.NoError(t, err)
+
+		// FIXME Read and validate.
+		require.NotNil(t, manifest)
+	})
+	t.Run("not found", func(t *testing.T) {
+		manifest, err := app.ManifestForVersion("1.69.420")
+		require.NoError(t, err)
+		require.Nil(t, manifest)
+	})
+}
+
 func Test_ParseBin(t *testing.T) {
 	t.Run("single string (single path entry)", func(t *testing.T) {
 		app := app(t, "main/ripgrep")

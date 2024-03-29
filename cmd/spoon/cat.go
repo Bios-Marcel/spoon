@@ -43,14 +43,25 @@ func catCmd() *cobra.Command {
 				app = installedApp.App
 			}
 
-			handle, err := os.Open(app.ManifestPath())
-			if err != nil {
-				return fmt.Errorf("error loading app data: %w", err)
+			var reader io.ReadCloser
+			_, _, version := scoop.ParseAppIdentifier(args[0])
+			if version != "" {
+				reader, err = app.ManifestForVersion(version)
+			} else {
+				reader, err = os.Open(app.ManifestPath())
 			}
 
-			_, err = io.Copy(os.Stdout, handle)
 			if err != nil {
-				return fmt.Errorf("error reading file: %w", err)
+				return fmt.Errorf("error loading manifest: %w", err)
+			}
+
+			if reader == nil {
+				return fmt.Errorf("the app couldn't be found")
+			}
+
+			_, err = io.Copy(os.Stdout, reader)
+			if err != nil {
+				return fmt.Errorf("error reading manifest: %w", err)
 			}
 			return nil
 		}),

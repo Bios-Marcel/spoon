@@ -11,7 +11,8 @@ relying on the existing community work in form of buckets.
   * Tab completion for commands, flags and packages
   * Common command aliases
     > For example no need to gues whether it's `uninstall`, `rm` or `remove`.
-  * `spoon shell`, it's kinda like `nix-shell`
+  * New commands
+    * `spoon shell`, it's kinda like `nix-shell`
 
 For a more detailed list of changes in comparison to scoop, check the table
 below.
@@ -50,7 +51,7 @@ Unknown / Unimplemented commands are delegated to scoop.
 | uninstall  | Wrapper             | * Terminate running processes                                            |
 | update     | Partially Native    | * Now invokes `status` after updating buckets                            |
 | bucket     | Partially Native    | * `bucket rm` now supports multiple buckets to delete at once            |
-| cat        | Native              | * Alias `manifest`                                                       |
+| cat        | Native              | * Alias `manifest`<br/>* Allow getting specific manifest versions        |
 | status     | Native              | * `--local` has been deleted (It's always local now)<br/>* Shows outdated / installed things scoop didn't (due to bugs) |
 | info       | Wrapper             |                                                                          |
 | depends    | Native (WIP)        | * Adds `--reverse/-r` flag<br/>* Prints an ASCII tree by default         |

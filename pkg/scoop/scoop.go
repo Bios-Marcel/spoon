@@ -1,10 +1,15 @@
 package scoop
 
 import (
+	"bufio"
+	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -740,6 +745,161 @@ func GetDefaultScoopDir() (string, error) {
 	}
 
 	return filepath.Join(home, "scoop"), nil
+}
+
+func (scoop *Scoop) Install(apps []string, arch ArchitectureKey) error {
+	for _, inputName := range apps {
+		app, err := scoop.GetAvailableApp(inputName)
+		if err != nil {
+			return fmt.Errorf("error installing app '%s': %w", inputName, err)
+		}
+
+		// FIXME Instead try to find it installed / history / workspace.
+		// Scoop doesnt do this, but we could do it with a "dangerous" flag.
+		if app == nil {
+			return fmt.Errorf("app '%s' not found", inputName)
+		}
+
+		// We might be trying to install a specific version of the given
+		// application. If this happens, we first look for the manifest in our
+		// git history. If that fails, we try to auto-generate it. The later is
+		// what scoop always does.
+		_, _, version := ParseAppIdentifier(inputName)
+		if version != "" {
+		}
+	}
+
+	return nil
+}
+
+var ErrBucketNoGitDir = errors.New(".git dir at path not found")
+
+// ManifestForVersion will search through history til a version equal to the
+// desired version is found. Note that we compare the versions and stop
+// searching if a lower version is encountered. This function is expected to
+// be very slow, be warned!
+func (a *App) ManifestForVersion(version string) (io.ReadCloser, error) {
+	manifestPath := filepath.ToSlash(a.ManifestPath())
+	repoPath := filepath.Dir(manifestPath)
+	for {
+		if _, err := os.Stat(filepath.Join(repoPath, ".git")); err == nil {
+			// The dir we've reached is the root of the bucket and therefore a
+			// git repository.
+			break
+		}
+		newPath := filepath.Dir(repoPath)
+		// We've reached the root of the volume.
+		if newPath == repoPath {
+			return nil, ErrBucketNoGitDir
+		}
+		repoPath = newPath
+	}
+	relativePath := strings.TrimPrefix(
+		strings.TrimPrefix(
+			manifestPath,
+			filepath.ToSlash(repoPath)),
+		"/")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cmd := exec.CommandContext(ctx, "git", "log", `--pretty=format:%h`, "--", relativePath)
+	defer cancel()
+
+	cmd.Dir = repoPath
+	outPipe, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, fmt.Errorf("error opening git log pipe: %w", err)
+	}
+	defer outPipe.Close()
+
+	type result struct {
+		err  error
+		data io.ReadCloser
+	}
+	resultChan := make(chan result, 5)
+
+	files := make(chan []byte, 5)
+
+	go func() {
+		defer outPipe.Close()
+		if err := cmd.Run(); err != nil {
+			resultChan <- result{err: err}
+		}
+	}()
+
+	go func() {
+		defer close(files)
+		scanner := bufio.NewScanner(outPipe)
+
+		for scanner.Scan() {
+			hash := scanner.Text()
+
+			showCmd := exec.Command("git", "show", fmt.Sprintf("%s:%s", hash, relativePath))
+			showCmd.Dir = repoPath
+			out, err := showCmd.StdoutPipe()
+			if err != nil {
+				resultChan <- result{err: err}
+				return
+			}
+			defer out.Close()
+
+			if err := showCmd.Start(); err != nil {
+				resultChan <- result{err: err}
+				return
+			}
+
+			bytes, err := io.ReadAll(out)
+			if err != nil {
+				resultChan <- result{err: fmt.Errorf("error reading git log pipe: %w", err)}
+				return
+			}
+			files <- bytes
+		}
+
+		// We will ignore the error here for now if ther eis any.
+		resultChan <- result{}
+	}()
+
+	go func() {
+		iter := jsoniter.ParseBytes(jsoniter.ConfigFastest, nil)
+		for file := range files {
+			iter.ResetBytes(file)
+
+			for field := iter.ReadObject(); field != ""; field = iter.ReadObject() {
+				if field == "version" {
+					manifestVersion := iter.ReadString()
+					// We've found our file. But we open a new reader, as we
+					// can't reset the existing one. Buffering it would probably not
+					// be cheaper, so this is approach is fine.
+					if manifestVersion == version {
+						resultChan <- result{
+							data: io.NopCloser(bytes.NewReader(file)),
+						}
+						return
+					}
+
+					// FIXME We've already missed it. We need version compare!
+					// if manifestVersion < version {
+					// // We've found the correct version, we probably won't find any
+					// // other, as we iterate from latest to oldest. Even if multiple
+					// // commits for the same version exists, we can assume the latest
+					// // one is the correct one.
+					// break FILE_LOOP
+					// }
+
+					continue
+				} else {
+					iter.Skip()
+				}
+			}
+		}
+
+		// Manifest not found.
+		// Attempt to generate!
+		resultChan <- result{}
+	}()
+
+	r := <-resultChan
+	return r.data, r.err
 }
 
 // LookupCache will check the cache dir for matching entries. Note that the
