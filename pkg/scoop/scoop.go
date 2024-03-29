@@ -210,21 +210,31 @@ func (b *Bucket) AvailableApps() ([]*App, error) {
 	return apps, nil
 }
 
+type KnownBucket struct {
+	Name string
+	URL  string
+}
+
 // GetKnownBuckets returns the list of available "default" buckets that are
 // available, but might have not necessarily been installed locally.
-func (scoop *Scoop) GetKnownBuckets() (map[string]string, error) {
+func (scoop *Scoop) GetKnownBuckets() ([]KnownBucket, error) {
 	file, err := os.Open(filepath.Join(scoop.GetScoopInstallationDir(), "buckets.json"))
 	if err != nil {
 		return nil, fmt.Errorf("error opening buckets.json: %w", err)
 	}
 	defer file.Close()
 
-	knownBuckets := make(map[string]string)
-	if err := json.NewDecoder(file).Decode(&knownBuckets); err != nil {
-		return nil, fmt.Errorf("error decoding buckets.json: %w", err)
-	}
+	iter := jsoniter.NewIterator(jsoniter.ConfigFastest)
+	iter.Reset(file)
 
-	return knownBuckets, nil
+	var buckets []KnownBucket
+	for bucketName := iter.ReadObject(); bucketName != ""; bucketName = iter.ReadObject() {
+		buckets = append(buckets, KnownBucket{
+			Name: bucketName,
+			URL:  iter.ReadString(),
+		})
+	}
+	return buckets, nil
 }
 
 // GetLocalBuckets is an API representation of locally installed buckets.

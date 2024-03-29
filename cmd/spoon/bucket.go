@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/Bios-Marcel/spoon/internal/collections"
 	"github.com/Bios-Marcel/spoon/pkg/scoop"
 	"github.com/spf13/cobra"
 )
@@ -44,12 +45,12 @@ This command accepts one or two arguments. Either a known bucket (see spoon buck
 					return nil, cobra.ShellCompDirectiveNoFileComp
 				}
 
-				knownBuckets, err := getKnownBucketsFlat(defaultScoop)
+				knownBuckets, err := defaultScoop.GetKnownBuckets()
 				if err != nil {
 					return nil, cobra.ShellCompDirectiveDefault
 				}
 
-				return knownBuckets, cobra.ShellCompDirectiveDefault
+				return knownBucketNames(knownBuckets), cobra.ShellCompDirectiveDefault
 			},
 			Run: func(cmd *cobra.Command, args []string) {
 				os.Exit(execScoopCommand("bucket add", args...))
@@ -147,7 +148,7 @@ This command accepts one or two arguments. Either a known bucket (see spoon buck
 				os.Exit(1)
 			}
 
-			knownBuckets, err := getKnownBucketsFlat(defaultScoop)
+			knownBuckets, err := defaultScoop.GetKnownBuckets()
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
@@ -161,11 +162,12 @@ This command accepts one or two arguments. Either a known bucket (see spoon buck
 
 			switch format {
 			case "plain":
-				for _, bucketName := range knownBuckets {
-					fmt.Println(bucketName)
+				for _, bucket := range knownBuckets {
+					fmt.Println(bucket.Name)
 				}
 			case "json":
-				if err := json.NewEncoder(os.Stdout).Encode(knownBuckets); err != nil {
+				bucketNames := knownBucketNames(knownBuckets)
+				if err := json.NewEncoder(os.Stdout).Encode(bucketNames); err != nil {
 					fmt.Println(err)
 					os.Exit(1)
 				}
@@ -178,16 +180,8 @@ This command accepts one or two arguments. Either a known bucket (see spoon buck
 	return bucketRoot
 }
 
-func getKnownBucketsFlat(scoop *scoop.Scoop) ([]string, error) {
-	knownBuckets, err := scoop.GetKnownBuckets()
-	if err != nil {
-		return nil, fmt.Errorf("error getting known buckets: %w", err)
-	}
-
-	var flattened []string
-	for bucketName := range knownBuckets {
-		flattened = append(flattened, bucketName)
-	}
-
-	return flattened, nil
+func knownBucketNames(buckets []scoop.KnownBucket) []string {
+	return collections.FlattenSlice(buckets, func(bucket scoop.KnownBucket) string {
+		return bucket.Name
+	})
 }
