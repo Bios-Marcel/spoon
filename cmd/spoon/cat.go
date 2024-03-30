@@ -57,7 +57,7 @@ func catCmd() *cobra.Command {
 			}
 
 			if reader == nil {
-				return fmt.Errorf("the app couldn't be found")
+				return fmt.Errorf("the app isn't offered in the desired version")
 			}
 
 			_, err = io.Copy(os.Stdout, reader)

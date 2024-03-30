@@ -15,6 +15,7 @@ import (
 
 	"github.com/Bios-Marcel/spoon/internal/git"
 	"github.com/Bios-Marcel/spoon/internal/windows"
+	"github.com/Bios-Marcel/versioncmp"
 	jsoniter "github.com/json-iterator/go"
 )
 
@@ -681,7 +682,11 @@ func (scoop *Scoop) GetOutdatedApps() ([]*OutdatedApp, error) {
 		if app != nil {
 			latestVersion = app.Version
 		}
-		if installedApp.Version != latestVersion {
+
+		if versioncmp.Compare(
+			installedApp.Version, latestVersion,
+			versioncmp.VersionCompareRules{},
+		) != "" {
 			outdated = append(outdated, &OutdatedApp{
 				ManifestDeleted: app == nil,
 				InstalledApp:    installedApp,
@@ -837,6 +842,7 @@ func (a *App) ManifestForVersion(targetVersion string) (io.ReadCloser, error) {
 		return nil, fmt.Errorf("error reading file contents from git: %w", err)
 	}
 
+	cmpRules := versioncmp.VersionCompareRules{}
 	iter := jsoniter.ParseBytes(jsoniter.ConfigFastest, nil)
 	for result := range resultChan {
 		if result.Error != nil {
@@ -847,22 +853,16 @@ func (a *App) ManifestForVersion(targetVersion string) (io.ReadCloser, error) {
 		// can't reset the existing one. Buffering it would probably not
 		// be cheaper, so this is approach is fine.
 		version := readVersion(iter, result.Data)
-		if version == targetVersion {
+		comparison := versioncmp.Compare(version, targetVersion, cmpRules)
+		if comparison == "" {
 			return io.NopCloser(bytes.NewReader(result.Data)), nil
 		}
 
-		// FIXME We've might already missed it. We need version compare!
-		// if manifestVersion < version {
-		// // We've found the correct version, we probably won't find any
-		// // other, as we iterate from latest to oldest. Even if multiple
-		// // commits for the same version exists, we can assume the latest
-		// // one is the correct one.
-		// break FILE_LOOP
-		// }
-
-		// While we might loop for a while, we'll live with it for now, til we
-		// improve it.
-		continue
+		// The version we are looking for is greater than the one from history,
+		// meaning we probably don't have the version in our history.
+		if comparison == targetVersion {
+			break
+		}
 	}
 
 	// Nothing found!

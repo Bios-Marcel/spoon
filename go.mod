@@ -3,6 +3,7 @@ module github.com/Bios-Marcel/spoon
 go 1.21.1
 
 require (
+	github.com/Bios-Marcel/versioncmp v0.0.0-20240329201707-2bd36cfebbc9
 	github.com/fatih/color v1.16.0
 	github.com/go-git/go-git/v5 v5.11.0
 	github.com/iamacarpet/go-win64api v0.0.0-20230324134531-ef6dbdd6db97
