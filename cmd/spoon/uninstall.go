@@ -25,28 +25,57 @@ func uninstallCmd() *cobra.Command {
 		},
 		Args:              cobra.MinimumNArgs(1),
 		ValidArgsFunction: autocompleteInstalled,
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: RunE(func(cmd *cobra.Command, args []string) error {
 			yes, err := cmd.Flags().GetBool("yes")
 			if err != nil {
-				fmt.Println("error getting yes flag:", err)
-				os.Exit(1)
+				return fmt.Errorf("error getting yes flag: %w", err)
 			}
 			defaultScoop, err := scoop.NewScoop()
 			if err != nil {
-				fmt.Println("error getting default scoop:", err)
-				os.Exit(1)
-			}
-			if err := checkRunningProcesses(defaultScoop, args, yes); err != nil {
-				fmt.Println(err)
+				return fmt.Errorf("error getting default scoop: %w", err)
 			}
 
-			redirectedFlags, err := getFlags(cmd, "global", "purge")
-			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
+			if err := checkRunningProcesses(defaultScoop, args, yes); err != nil {
+				return fmt.Errorf("error checking running processes: %w", err)
 			}
-			os.Exit(execScoopCommand("uninstall", append(redirectedFlags, args...)...))
-		},
+
+			// FIXME 3 funcs: FindInstalledApp, FindInstalledApps,
+			// InstalledApps. The later returns all of them, returning
+			// everything instead of finding something.
+			for _, arg := range args {
+				app, err := defaultScoop.FindInstalledApp(args[0])
+				if err != nil {
+					return err
+				}
+
+				// FIXME Is this good? What does scoop do?
+				if app == nil {
+					fmt.Printf("App '%s' is not intalled.\n", arg)
+					continue
+				}
+
+				// FIXME We need to make the loading stuff less annoying. Can we
+				// have a special optimisation path / package so that we can
+				// still cover stuff such as search?
+				if err := app.LoadDetails(scoop.DetailFieldsAll...); err != nil {
+					return fmt.Errorf("error loading app details: %w", err)
+				}
+
+				// FIXME This currently only uninstalls a specific version. We
+				// need multiple versions current, specific all?
+				if err := defaultScoop.Uninstall(app, app.Architecture); err != nil {
+					return fmt.Errorf("error uninstalling '%s': %w", arg, err)
+				}
+			}
+
+			// redirectedFlags, err := getFlags(cmd, "global", "purge")
+			// if err != nil {
+			// 	fmt.Println(err)
+			// 	os.Exit(1)
+			// }
+			// os.Exit(execScoopCommand("uninstall", append(redirectedFlags, args...)...))
+			return nil
+		}),
 	}
 
 	cmd.Flags().BoolP("global", "g", false, "Uninstall a globally installed app")
@@ -65,7 +94,7 @@ func checkRunningProcesses(scoop *scoop.Scoop, args []string, yes bool) error {
 	var processPrefixes []string
 	for _, arg := range args {
 		processPrefixes = append(processPrefixes,
-			strings.ToLower(filepath.Join(scoop.GetAppsDir(), arg)+"\\"))
+			strings.ToLower(filepath.Join(scoop.AppDir(), arg)+"\\"))
 	}
 
 	var processesToKill []shared.Process

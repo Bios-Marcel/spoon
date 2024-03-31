@@ -7,6 +7,9 @@ relying on the existing community work in form of buckets.
 
 * More thorough `scoop search`
 * Better performance (Varies from command to command)
+* Behaviour changes
+  * `spoon install app@version` will now use an old manifest and hold the app, instead
+    of generating a manifest (destined to be buggy)
 * Additional features
   * Tab completion for commands, flags and packages
   * Common command aliases
@@ -21,8 +24,13 @@ below.
 
 ## Breaking Changes
 
+* No automatic `spoon update` calls during `install`, `download`, ...
 * The `--global` flag hasn't beren implemented anywhere and I am not planning to
   do so as of now. If there's demand in the future, I will consider.
+* Only `kiennq/shim.exe` is supported for shimming
+  > The older shim formats were included in scoop for backwards compatibility
+  > reasons. The solution is probably to simply reinstall all currently
+  > installed packages via `scoop export` and `scoop import`.
 
 ## Manual Installation
 
@@ -46,6 +54,16 @@ any harm to your OS or other packages.
 Note that self-updating is *NOT YET* possible. To update, please use `scoop
 update spoon` for now.
 
+## Runtime dependencies
+
+While spoon is written in Golang, it has runtime dependencies needed for
+installing. Rewriting those would provide little to no value and cost a lot of
+value.
+
+* [shim.exe](https://github.com/kiennq/scoop-better-shimexe) - Included in
+  Binary - MIT/Unlicense
+* ... TODO
+
 ## CLI Progress
 
 Progress overview for scoop command implementations. This does NOT include spoon
@@ -65,24 +83,24 @@ There are basically three levels of implementations (and the states inbetween):
 | ---------- | ------------------- | ------------------------------------------------------------------------ |
 | help       | Native              |                                                                          |
 | search     | Native              | * Performance improvements<br/>* JSON output<br/> * Search configuration |
-| install    | Wrapper             |                                                                          |
-| uninstall  | Wrapper             | * Terminate running processes                                            |
-| update     | Partially Native    | * Now invokes `status` after updating buckets                            |
-| bucket     | Partially Native    | * `bucket rm` now supports multiple buckets to delete at once            |
+| download   | Native              | * Support for multiple apps to download at once                          |
 | cat        | Native              | * Alias `manifest`<br/>* Allow getting specific manifest versions        |
 | status     | Native              | * `--local` has been deleted (It's always local now)<br/>* Shows outdated / installed things scoop didn't (due to bugs) |
-| info       | Wrapper             |                                                                          |
 | depends    | Native (WIP)        | * Adds `--reverse/-r` flag<br/>* Prints an ASCII tree by default         |
+| update     | Partially Native    | * Now invokes `status` after updating buckets                            |
+| bucket     | Partially Native    | * `bucket rm` now supports multiple buckets to delete at once            |
+| install    | Native (WIP)        | * Installing a specific version doesn't generate manifests anymore, but uses an old existing manifest and sets the installed app to `held`. |
+| uninstall  | Native (WIP)        | * Terminate running processes                                            |
+| info       | Wrapper             |                                                                          |
+| shim       | Planned Next        |                                                                          |
+| unhold     | Planned Next        |                                                                          |
+| hold       | Planned Next        |                                                                          |
 | list       |                     |                                                                          |
-| hold       |                     |                                                                          |
-| unhold     |                     |                                                                          |
 | reset      |                     |                                                                          |
 | cleanup    |                     |                                                                          |
 | create     |                     |                                                                          |
-| shim       |                     |                                                                          |
 | which      |                     |                                                                          |
 | config     |                     |                                                                          |
-| download   |                     |                                                                          |
 | cache      |                     |                                                                          |
 | prefix     |                     |                                                                          |
 | home       |                     |                                                                          |
@@ -91,15 +109,4 @@ There are basically three levels of implementations (and the states inbetween):
 | checkup    |                     |                                                                          |
 | virustotal |                     |                                                                          |
 | alias      |                     |                                                                          |
-
-## Search
-
-The search here does nothing fancy, it simply does an offline search of
-buckets, just like what scoop does, but faster. Online search is not supported
-as I deem it unnecessary. If you want to search the latest, simply run
-`scoop update; spoon search <app>`.
-
-The search command allows plain output and JSON output. This allows use with
-tools such as `jq` or direct use in powershell via Powershells builtin
-`ConvertFrom-Json`.
 
