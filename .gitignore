@@ -1,4 +1,5 @@
 *.exe
+!/pkg/scoop/shim.exe
 /spoon
 *.pprof
 
