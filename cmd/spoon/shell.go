@@ -134,15 +134,23 @@ func shellCmd() *cobra.Command {
 			newTempPath := newShimPath
 
 			installEnv := os.Environ()
+
 			var scoopPathSet bool
 			// We want to keep the env in tact for subprocesses, as setting
 			// cmd.Env will actually overwrite the whole env.
 			for index, envVar := range installEnv {
-				if strings.HasPrefix(envVar, "PATH=") {
-					installEnv[index] = "PATH=" + newShimPath + ";" + strings.TrimPrefix(envVar, "PATH=")
+				keyVal := strings.SplitN(envVar, "=", 2)
+				if len(keyVal) < 2 {
 					continue
-				} else if strings.HasPrefix(envVar, "SCOOP=") {
-					installEnv[index] = "SCOOP=" + tempScoopPath
+				}
+
+				// Sometimes its `PATH` and sometimes its `Path`.
+				key := keyVal[0]
+				if strings.EqualFold(key, "PATH") {
+					installEnv[index] = key + "=" + newShimPath + ";" + keyVal[1]
+					continue
+				} else if strings.EqualFold(key, "SCOOP") {
+					installEnv[index] = key + "=" + tempScoopPath
 					// SCOOP var might not be present, so we Your local changes
 					// to the following files would be overwritten by mergeneed
 					// to append it if it wasn't overwritten already.
@@ -152,11 +160,12 @@ func shellCmd() *cobra.Command {
 			if !scoopPathSet {
 				installEnv = append(installEnv, "SCOOP="+tempScoopPath)
 			}
+
 			/*
 				TODO:
 
 				Support for different shells (pwsh / powershell / batch / bash / wsl?)
-				Proper support for subshelling
+				Proper support for subshelling (this didnt work due to buggy scoop shimming, nothing actually stops us from doing this.)
 				$env:CUSTOM in env_set
 				$source variable
 				Prevent install (unpack) if app is already installed in user, instead hardlink (its basically free)

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strings"
 	"syscall"
 	"unsafe"
 )
@@ -58,14 +59,34 @@ type PROCESSENTRY32 struct {
 }
 
 func GetShellExecutable() (string, error) {
-	parentProcess, err := os.FindProcess(os.Getppid())
+	parentId := os.Getppid()
+	for {
+		name, id, err := getParentProcessInfo(parentId)
+		if err != nil {
+			return "", fmt.Errorf("shell not found: %w", err)
+		}
+
+		// Depending on whether we are shimmed or not, our parent might be
+		// a shim, so we'll try ignoring this and going deeper.
+		if lowered := strings.ToLower(name); lowered == "spoon.exe" || lowered == "spoon" {
+			parentId = id
+			continue
+		}
+
+		return name, nil
+	}
+}
+
+// getParentProcessInfo returns name, parent_process_id and error.
+func getParentProcessInfo(parentProcessId int) (string, int, error) {
+	parentProcess, err := os.FindProcess(parentProcessId)
 	if err != nil {
-		return "", fmt.Errorf("error getting parent process: %w", err)
+		return "", 0, fmt.Errorf("error getting parent process: %w", err)
 	}
 
 	handle, _, _ := procCreateToolhelp32Snapshot.Call(0x00000002, 0)
 	if handle < 0 {
-		return "", syscall.GetLastError()
+		return "", 0, syscall.GetLastError()
 	}
 	defer procCloseHandle.Call(handle)
 
@@ -73,7 +94,7 @@ func GetShellExecutable() (string, error) {
 	entry.Size = uint32(unsafe.Sizeof(entry))
 	ret, _, _ := procProcess32First.Call(handle, uintptr(unsafe.Pointer(&entry)))
 	if ret == 0 {
-		return "", errors.New("error reading process entry")
+		return "", 0, errors.New("error reading process entry")
 	}
 
 	for {
@@ -87,10 +108,10 @@ func GetShellExecutable() (string, error) {
 			}
 
 			if name == "" {
-				return "", errors.New("error reading process name")
+				return "", 0, errors.New("error reading process name")
 			}
 
-			return name, nil
+			return name, int(entry.ParentProcessID), nil
 		}
 
 		ret, _, _ := procProcess32Next.Call(handle, uintptr(unsafe.Pointer(&entry)))
@@ -99,5 +120,5 @@ func GetShellExecutable() (string, error) {
 		}
 	}
 
-	return "", errors.New("shell not found")
+	return "", 0, errors.New("error parent process not found")
 }
