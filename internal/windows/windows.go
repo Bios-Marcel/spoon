@@ -67,8 +67,10 @@ func GetShellExecutable() (string, error) {
 		}
 
 		// Depending on whether we are shimmed or not, our parent might be
-		// a shim, so we'll try ignoring this and going deeper.
-		if lowered := strings.ToLower(name); lowered == "spoon.exe" || lowered == "spoon" {
+		// a shim, so we'll try ignoring this and going deeper. We'll
+		// additionally ignore go.exe, as this helps during dev, using `go run`.
+		if lowered := strings.ToLower(name); lowered == "spoon.exe" ||
+			lowered == "spoon" || lowered == "go" || lowered == "go.exe" {
 			parentId = id
 			continue
 		}

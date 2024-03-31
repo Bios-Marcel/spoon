@@ -14,23 +14,34 @@ func installCmd() *cobra.Command {
 		Short:             "Install a package",
 		Args:              cobra.MinimumNArgs(1),
 		ValidArgsFunction: autocompleteAvailable,
-		Run: func(cmd *cobra.Command, args []string) {
-			flags, err := getFlags(cmd, "global", "independent", "no-cache", "no-update-scoop", "skip", "arch")
+		RunE: RunE(func(cmd *cobra.Command, args []string) error {
+			// Flags we currently do not support
+			if must(cmd.Flags().GetBool("global")) {
+				flags, err := getFlags(cmd, "global", "independent", "no-cache",
+					"no-update-scoop", "skip", "arch")
+				if err != nil {
+					return err
+				}
+				os.Exit(execScoopCommand("install", append(flags, args...)...))
+			}
+
+			arch := must(cmd.Flags().GetString("arch"))
+
+			defaultScoop, err := scoop.NewScoop()
 			if err != nil {
+				return fmt.Errorf("error retrieving scoop instance: %w", err)
+			}
+
+			installErrors := defaultScoop.InstallAll(args, scoop.ArchitectureKey(arch))
+			for _, err := range installErrors {
 				fmt.Println(err)
+			}
+
+			if len(installErrors) > 0 {
 				os.Exit(1)
 			}
-
-			// Default path, where we can't do our simple optimisation of
-			// parallelising install and download, as we only have one package.
-			if len(args) == 1 {
-				os.Exit(execScoopCommand("install", append(flags, args...)...))
-				return
-			}
-
-			// FIXME Parallelise.
-			os.Exit(execScoopCommand("install", append(flags, args...)...))
-		},
+			return nil
+		}),
 	}
 
 	cmd.Flags().BoolP("global", "g", false, "Install an app globally")

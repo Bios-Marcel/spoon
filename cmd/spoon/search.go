@@ -10,8 +10,6 @@ import (
 	"strings"
 	"sync"
 
-	_ "runtime/pprof"
-
 	"github.com/Bios-Marcel/spoon/internal/cli"
 	"github.com/Bios-Marcel/spoon/pkg/scoop"
 	jsoniter "github.com/json-iterator/go"
