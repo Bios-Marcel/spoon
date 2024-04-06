@@ -233,14 +233,25 @@ func (scoop *Scoop) GetKnownBuckets() ([]KnownBucket, error) {
 
 // GetLocalBuckets is an API representation of locally installed buckets.
 func (scoop *Scoop) GetLocalBuckets() ([]*Bucket, error) {
-	bucketPaths, err := windows.GetDirFilenames(scoop.GetBucketsDir())
+	potentialBuckets, err := windows.GetDirFilenames(scoop.GetBucketsDir())
 	if err != nil {
-		return nil, fmt.Errorf("error reaeding bucket names: %w", err)
+		return nil, fmt.Errorf("error reading bucket names: %w", err)
 	}
 
-	buckets := make([]*Bucket, len(bucketPaths))
-	for index, bucketPath := range bucketPaths {
-		buckets[index] = &Bucket{rootDir: filepath.Join(scoop.GetBucketsDir(), bucketPath)}
+	buckets := make([]*Bucket, 0, len(potentialBuckets))
+	for _, potentialBucket := range potentialBuckets {
+		// While the bucket folder SHOULD only contain buckets, one could
+		// accidentally place ANYTHING else in it, even textfiles.
+		absBucketPath := filepath.Join(scoop.GetBucketsDir(), potentialBucket)
+		file, err := os.Stat(absBucketPath)
+		if err != nil {
+			return nil, fmt.Errorf("error stat-ing potential bucket: %w", err)
+		}
+		if !file.IsDir() {
+			continue
+		}
+
+		buckets = append(buckets, &Bucket{rootDir: absBucketPath})
 	}
 	return buckets, nil
 }
