@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/Bios-Marcel/spoon/pkg/scoop"
 	"github.com/spf13/cobra"
@@ -24,10 +25,11 @@ func versionsCmd() *cobra.Command {
 			}
 
 			if app == nil {
-				return fmt.Errorf("app does not exist")
+				return fmt.Errorf("app '%s' does not exist", args[0])
 			}
 
-			versions, err := app.AvailableVersions()
+			count := must(cmd.Flags().GetInt("count"))
+			versions, err := app.AvailableVersionsN(count)
 			if err != nil {
 				return fmt.Errorf("error retrieving versions: %w", err)
 			}
@@ -38,6 +40,8 @@ func versionsCmd() *cobra.Command {
 			return nil
 		}),
 	}
+
+	cmd.Flags().IntP("count", "c", math.MaxInt32, "defines how many versions you want to fetch (impacts speed)")
 
 	return cmd
 }

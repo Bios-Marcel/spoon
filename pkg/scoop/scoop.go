@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -793,6 +794,10 @@ func (scoop *Scoop) Install(apps []string, arch ArchitectureKey) error {
 var ErrBucketNoGitDir = errors.New(".git dir at path not found")
 
 func (a *App) AvailableVersions() ([]string, error) {
+	return a.AvailableVersionsN(math.MaxInt32)
+}
+
+func (a *App) AvailableVersionsN(maxVersions int) ([]string, error) {
 	repoPath, relManifestPath := git.GitPaths(a.ManifestPath())
 	if repoPath == "" || relManifestPath == "" {
 		return nil, ErrBucketNoGitDir
@@ -808,6 +813,9 @@ func (a *App) AvailableVersions() ([]string, error) {
 	iter := jsoniter.ParseBytes(jsoniter.ConfigFastest, nil)
 	var versions []string
 	for result := range resultChan {
+		if len(versions) >= maxVersions {
+			break
+		}
 		if result.Error != nil {
 			return nil, result.Error
 		}
