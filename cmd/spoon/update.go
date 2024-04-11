@@ -48,7 +48,7 @@ func updateCmd() *cobra.Command {
 			// We do this natively, as it's much faster and a rather easy task.
 			// However, we haven't implemented install yet, therefore we can't
 			// handle the actual updating of apps.
-			if len(args) > 0 {
+			if len(args) > 0 || must(cmd.Flags().GetBool("all")) {
 				flags, err := getFlags(cmd, "force", "global", "indepdendent", "no-cache", "skip", "quiet", "all")
 				if err != nil {
 					return fmt.Errorf("error reading flags: %w", err)
