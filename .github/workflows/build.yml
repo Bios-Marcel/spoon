@@ -28,8 +28,11 @@ jobs:
 
       - name: Build artifact
         shell: bash
+        # We try to make the build as reproducible as possible. We even omit
+        # versioning information, as this should be available via the manifest
+        # either way.
         run: |
-          go build -trimpath -ldflags "-w -s" -o spoon.exe ./cmd/spoon
+          go build -buildvcs=false -trimpath -ldflags "-w -s -buildid=" -o spoon.exe ./cmd/spoon
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
