@@ -23,7 +23,7 @@ jobs:
 
       - name: Create pre-release
         uses: softprops/action-gh-release@v1
-        if: ${{ endsWith(github.ref, 'pre') }}
+        if: ${{ contains(github.ref, 'pre') }}
         with:
           name: ${{ github.event.workflow_run.head_branch }}
           tag_name: ${{ github.event.workflow_run.head_branch }}
@@ -33,7 +33,7 @@ jobs:
 
       - name: Create release
         uses: softprops/action-gh-release@v1
-        if: ${{ ! endsWith(github.ref, 'pre') }}
+        if: ${{ ! contains(github.ref, 'pre') }}
         with:
           name: ${{ github.event.workflow_run.head_branch }}
           tag_name: ${{ github.event.workflow_run.head_branch }}
