@@ -36,6 +36,11 @@ below.
   scoop install spoon
   ```
 
+**If you want to test out the latest "in progress" stuff, try the `spoon_pre`
+package instead.** It contains potentially unstable or half-finished features.
+Worst case it will install a package in an unfunctinal state, but won't cause
+any harm to your OS or other packages.
+
 ## Updates
 
 Note that self-updating is *NOT YET* possible. To update, please use `scoop
