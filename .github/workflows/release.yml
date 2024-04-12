@@ -21,10 +21,22 @@ jobs:
           workflow: build.yml
           name: spoon.exe
 
-      - name: Create release
+      - name: Create pre-release
         uses: softprops/action-gh-release@v1
+        if: ${{ endsWith(github.ref, 'pre') }}
         with:
           name: ${{ github.event.workflow_run.head_branch }}
           tag_name: ${{ github.event.workflow_run.head_branch }}
+          prerelease: true
+          files: |
+            spoon.exe
+
+      - name: Create release
+        uses: softprops/action-gh-release@v1
+        if: ${{ ! endsWith(github.ref, 'pre') }}
+        with:
+          name: ${{ github.event.workflow_run.head_branch }}
+          tag_name: ${{ github.event.workflow_run.head_branch }}
+          prerelease: false
           files: |
             spoon.exe
