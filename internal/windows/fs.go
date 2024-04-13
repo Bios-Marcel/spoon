@@ -2,9 +2,45 @@ package windows
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
+	"path/filepath"
 )
+
+// ExtractDir will move all files of a given to the target directory
+func ExtractDir(dirToExtract, destinationDir string) error {
+	return filepath.WalkDir(
+		dirToExtract,
+		func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+
+			// We don't care about the root, which is what we  are trying
+			// to remove.
+			if path == dirToExtract {
+				return nil
+			}
+
+			// We take the relative path to be able to drop the first
+			// element, which is the extractDir.
+			relPath, err := filepath.Rel(dirToExtract, path)
+			if err != nil {
+				return err
+			}
+
+			if err := os.Rename(path, filepath.Join(destinationDir, relPath)); err != nil {
+				return err
+			}
+
+			if d.IsDir() {
+				return filepath.SkipDir
+			}
+
+			return nil
+		})
+}
 
 func GetDirFilenames(dir string) ([]string, error) {
 	dirHandle, err := os.Open(dir)

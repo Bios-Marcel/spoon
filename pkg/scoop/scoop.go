@@ -232,8 +232,7 @@ func (scoop *Scoop) GetKnownBuckets() ([]KnownBucket, error) {
 	}
 	defer file.Close()
 
-	iter := jsoniter.NewIterator(jsoniter.ConfigFastest)
-	iter.Reset(file)
+	iter := jsoniter.Parse(jsoniter.ConfigFastest, file, 1024)
 
 	var buckets []KnownBucket
 	for bucketName := iter.ReadObject(); bucketName != ""; bucketName = iter.ReadObject() {
@@ -242,6 +241,7 @@ func (scoop *Scoop) GetKnownBuckets() ([]KnownBucket, error) {
 			URL:  iter.ReadString(),
 		})
 	}
+
 	return buckets, nil
 }
 
@@ -1044,7 +1044,7 @@ func (scoop *Scoop) install(iter *jsoniter.Iterator, appName string, arch Archit
 		case error:
 			return err
 		case *CacheHit:
-			fmt.Printf("Cache hit for '%s'", filepath.Base(result.Downloadable.URL))
+			fmt.Printf("Cache hit for '%s'\n", filepath.Base(result.Downloadable.URL))
 			if err := scoop.extract(app, resolvedApp, cacheDir, versionDir, *result.Downloadable, arch); err != nil {
 				return fmt.Errorf("error extracting file '%s': %w", filepath.Base(result.Downloadable.URL), err)
 			}
@@ -1162,7 +1162,7 @@ func (scoop *Scoop) extract(
 	fmt.Printf("Extracting '%s' ...\n", baseName)
 
 	fileToExtract := filepath.Join(cacheDir, CachePath(app.Name, app.Version, item.URL))
-	targetPath := filepath.Join(appDir, item.ExtractTo)
+	destinationDir := filepath.Join(appDir, item.ExtractTo)
 
 	// Depending on metadata / filename, we decide how to extract the
 	// files that are to be installed. Note we don't care whether the
@@ -1196,7 +1196,7 @@ func (scoop *Scoop) extract(
 			// Confirm questions
 			"-y",
 			// Destination
-			"-d" + targetPath,
+			"-d" + destinationDir,
 			fileToExtract,
 		}
 
@@ -1247,15 +1247,16 @@ func (scoop *Scoop) extract(
 			"x",
 			fileToExtract,
 			// Target path
-			"-o" + targetPath,
+			"-o" + destinationDir,
 			// Overwrite all files
 			"-aoa",
 			// Confirm
 			"-y",
 		}
+
 		// FIXME: $IsTar = ((strip_ext $Path) -match '\.tar$') -or ($Path -match '\.t[abgpx]z2?$')
 		if ext != ".tar" && item.ExtractDir != "" {
-			args = append(args, "-ir!"+filepath.Join(item.ExtractDir, "*"))
+			args = append(args, "-ir!"+item.ExtractDir+"\\*")
 		}
 		cmd := exec.Command(
 			"7z",
@@ -1264,9 +1265,25 @@ func (scoop *Scoop) extract(
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("error invoking 7z: %w", err)
 		}
+
+		// 7zip can't extract the ExtractDir files, it always creates the
+		// extract dir.
+		if item.ExtractDir != "" {
+			dirToMove := filepath.Join(destinationDir, item.ExtractDir)
+			if err := windows.ExtractDir(dirToMove, destinationDir); err != nil {
+				return fmt.Errorf("error extracing dir: %w", err)
+			}
+			// Since the dir should be empty by now, a simple remove will delete
+			// it, no need for RemoveAll.
+			if err := os.Remove(dirToMove); err != nil {
+				return fmt.Errorf("error cleaning up empty directory: %w", err)
+			}
+		}
+
+		return nil
 	}
 
-	// TODO: dark, msi, inno, installer, zst
+	// TODO: dark, msi, installer, zst
 
 	switch ext {
 	case ".msi":
