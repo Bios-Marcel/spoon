@@ -79,6 +79,7 @@ func (b *Bucket) FindApp(name string) *App {
 			manifestPath: potentialManifest,
 		}
 	}
+
 	return nil
 }
 
@@ -152,6 +153,7 @@ func (scoop *Scoop) findInstalledApp(iter *jsoniter.Iterator, name string) (*Ins
 		}
 		return nil, fmt.Errorf("error reading install.json: %w", err)
 	}
+	defer installJson.Close()
 
 	iter.Reset(installJson)
 
@@ -283,12 +285,13 @@ type App struct {
 	Version     string `json:"version"`
 	Notes       string `json:"notes"`
 
-	Bin        []Bin    `json:"bin"`
-	Shortcuts  []Bin    `json:"shortcuts"`
-	EnvAddPath []string `json:"env_add_path"`
-	EnvSet     []EnvVar `json:"env_set"`
+	Bin        []Bin        `json:"bin"`
+	Shortcuts  []Bin        `json:"shortcuts"`
+	EnvAddPath []string     `json:"env_add_path"`
+	EnvSet     []EnvVar     `json:"env_set"`
+	Persist    []PersistDir `json:"persist"`
 
-	Downloadables []Downloadable
+	Downloadables []Downloadable `json:"downloadables"`
 
 	Depends      []Dependency                      `json:"depends"`
 	Architecture map[ArchitectureKey]*Architecture `json:"architecture"`
@@ -332,6 +335,15 @@ type EnvVar struct {
 type Dependency struct {
 	Bucket string
 	Name   string
+}
+
+// PersistDir represents a directory in the installation of the application,
+// which the app or the user will write to. This is placed in a separate
+// location and kept upon uninstallation.
+type PersistDir struct {
+	Dir string
+	// LinkName is optional and can be used to rename the [Dir].
+	LinkName string
 }
 
 type Bin struct {
@@ -829,6 +841,7 @@ func validateHash(path, hashVal string) error {
 	if err != nil {
 		return fmt.Errorf("error determining checksum: %w", err)
 	}
+	defer file.Close()
 
 	if _, err := io.Copy(algo, file); err != nil {
 		return fmt.Errorf("error determining checksum: %w", err)
@@ -888,14 +901,9 @@ func (scoop *Scoop) Uninstall(app *InstalledApp, arch ArchitectureKey) error {
 	appDir := filepath.Join(scoop.AppDir(), app.Name)
 	currentDir := filepath.Join(appDir, "current")
 
-	// Make sure installation dir isn't readonly anymore. Scoop does this for
-	// some reason.
-	// FIXME The files inside are writable anyway. Should figure out why.
-	if err := os.Chmod(currentDir, 0o600); err != nil {
-		return fmt.Errorf("error making current dir deletable: %w", err)
-	}
-
-	if err := os.RemoveAll(currentDir); err != nil {
+	// The install dir is marked as read-only, but not the files inside.
+	// This will also unlink any persist-dir.
+	if err := windows.ForceRemoveAll(currentDir); err != nil {
 		return fmt.Errorf("error deleting installation files: %w", err)
 	}
 
@@ -904,7 +912,7 @@ func (scoop *Scoop) Uninstall(app *InstalledApp, arch ArchitectureKey) error {
 	}
 
 	// FIXME Do rest of the uninstall here
-	// 2. Remove shortcuts
+	// 1. Remove shortcuts
 
 	if err := scoop.runScript(resolvedApp.PostUninstall); err != nil {
 		return fmt.Errorf("error executing post_uninstall script: %w", err)
@@ -1030,7 +1038,7 @@ func (scoop *Scoop) install(iter *jsoniter.Iterator, appName string, arch Archit
 
 	versionDir := filepath.Join(appDir, app.Version)
 	if err := os.MkdirAll(versionDir, os.ModeDir); err != nil {
-		return fmt.Errorf("error creating isntallation targer dir: %w", err)
+		return fmt.Errorf("error creating installation target dir: %w", err)
 	}
 
 	cacheDir := scoop.CacheDir()
@@ -1120,6 +1128,62 @@ func (scoop *Scoop) install(iter *jsoniter.Iterator, appName string, arch Archit
 		return fmt.Errorf("error writing installation information: %w", err)
 	}
 
+	persistDir := filepath.Join(scoop.PersistDir(), app.Name)
+	for _, entry := range resolvedApp.Persist {
+		// While I did find one manifest with $dir in it, said manifest installs
+		// in a faulty way. (See versions/lynx283). The manifest hasn't really
+		// been touched for at least 5 years. Either this was a scoop feature at
+		// some point or it never was and went uncaught.
+
+		source := filepath.Join(versionDir, entry.Dir)
+		var target string
+		if entry.LinkName != "" {
+			target = filepath.Join(persistDir, entry.LinkName)
+		} else {
+			target = filepath.Join(persistDir, entry.Dir)
+		}
+
+		_, targetErr := os.Stat(target)
+		if targetErr != nil && !os.IsNotExist(targetErr) {
+			return targetErr
+		}
+		_, sourceErr := os.Stat(source)
+		if sourceErr != nil && !os.IsNotExist(sourceErr) {
+			return sourceErr
+		}
+
+		// Target exists
+		if targetErr == nil {
+			if sourceErr == nil {
+				// "Backup" the source. Scoop did this as well.
+				if err := os.Rename(source, source+".original"); err != nil {
+					return fmt.Errorf("error backing up source: %w", err)
+				}
+			}
+		} else if sourceErr == nil {
+			if err := os.Rename(source, target); err != nil {
+				return fmt.Errorf("error moving source to target: %w", err)
+			}
+		} else {
+			if err := os.MkdirAll(target, os.ModeDir); err != nil {
+				return fmt.Errorf("error creating target: %w", err)
+			}
+		}
+
+		targetInfo, err := os.Stat(target)
+		if err != nil {
+			return err
+		}
+
+		if targetInfo.IsDir() {
+			err = windows.CreateJunctions([2]string{target, source})
+		} else {
+			err = os.Link(target, source)
+		}
+		if err != nil {
+			return fmt.Errorf("error linking to persist target: %w", err)
+		}
+	}
 	if err := scoop.runScript(resolvedApp.PostInstall); err != nil {
 		return fmt.Errorf("error running post install script: %w", err)
 	}

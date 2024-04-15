@@ -8,6 +8,8 @@ import (
 )
 
 func app(t *testing.T, name string) *scoop.App {
+	t.Helper()
+
 	defaultScoop, err := scoop.NewScoop()
 	require.NoError(t, err)
 
@@ -18,6 +20,8 @@ func app(t *testing.T, name string) *scoop.App {
 }
 
 func Test_ManifestForVersion(t *testing.T) {
+	t.Parallel()
+
 	defaultScoop, err := scoop.NewScoop()
 	require.NoError(t, err)
 
@@ -25,6 +29,8 @@ func Test_ManifestForVersion(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("found", func(t *testing.T) {
+		t.Parallel()
+
 		manifest, err := app.ManifestForVersion("1.22.0")
 		require.NoError(t, err)
 
@@ -32,6 +38,8 @@ func Test_ManifestForVersion(t *testing.T) {
 		require.NotNil(t, manifest)
 	})
 	t.Run("not found", func(t *testing.T) {
+		t.Parallel()
+
 		manifest, err := app.ManifestForVersion("1.69.420")
 		require.NoError(t, err)
 		require.Nil(t, manifest)
@@ -39,7 +47,11 @@ func Test_ManifestForVersion(t *testing.T) {
 }
 
 func Test_ParseBin(t *testing.T) {
+	t.Parallel()
+
 	t.Run("single string (single path entry)", func(t *testing.T) {
+		t.Parallel()
+
 		app := app(t, "main/ripgrep")
 
 		err := app.LoadDetails(scoop.DetailFieldBin)
@@ -49,6 +61,8 @@ func Test_ParseBin(t *testing.T) {
 		require.Equal(t, app.Bin[0], scoop.Bin{Name: "rg.exe"})
 	})
 	t.Run("top level array (path entries)", func(t *testing.T) {
+		t.Parallel()
+
 		app := app(t, "main/go")
 
 		err := app.LoadDetails(scoop.DetailFieldBin)
@@ -60,6 +74,8 @@ func Test_ParseBin(t *testing.T) {
 		require.Contains(t, app.Bin, scoop.Bin{Name: "bin\\gofmt.exe"})
 	})
 	t.Run("nested array (multiple shims)", func(t *testing.T) {
+		t.Parallel()
+
 		app := app(t, "extras/stash")
 
 		err := app.LoadDetails(scoop.DetailFieldBin)
@@ -79,6 +95,8 @@ func Test_ParseBin(t *testing.T) {
 		})
 	})
 	t.Run("nested array that contains arrays and strings", func(t *testing.T) {
+		t.Parallel()
+
 		app := app(t, "main/python")
 
 		err := app.LoadDetails(scoop.DetailFieldBin)
@@ -101,6 +119,8 @@ func Test_ParseBin(t *testing.T) {
 }
 
 func Test_ParseArchitecture_Items(t *testing.T) {
+	t.Parallel()
+
 	goApp := app(t, "main/go")
 
 	err := goApp.LoadDetails(scoop.DetailFieldArchitecture)

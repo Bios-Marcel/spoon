@@ -22,6 +22,7 @@ const (
 	DetailFieldDepends       = "depends"
 	DetailFieldEnvSet        = "env_set"
 	DetailFieldEnvAddPath    = "env_add_path"
+	DetailFieldPersist       = "persist"
 	DetailFieldExtractDir    = "extract_dir"
 	DetailFieldExtractTo     = "extract_to"
 	DetailFieldPostInstall   = "post_install"
@@ -48,6 +49,7 @@ var DetailFieldsAll = []string{
 	DetailFieldDepends,
 	DetailFieldEnvSet,
 	DetailFieldEnvAddPath,
+	DetailFieldPersist,
 	DetailFieldExtractDir,
 	DetailFieldExtractTo,
 	DetailFieldPostInstall,
@@ -191,6 +193,25 @@ func (a *App) loadDetailFromManifestWithIter(
 		case DetailFieldEnvSet:
 			for key := iter.ReadObject(); key != ""; key = iter.ReadObject() {
 				a.EnvSet = append(a.EnvSet, EnvVar{Key: key, Value: iter.ReadString()})
+			}
+		case DetailFieldPersist:
+			if iter.WhatIsNext() == jsoniter.ArrayValue {
+				for iter.ReadArray() {
+					if iter.WhatIsNext() == jsoniter.ArrayValue {
+						_ = iter.ReadArray()
+						dir := PersistDir{Dir: iter.ReadString()}
+						// I am unsure whether there could be an array with a
+						// single value, so we treat it anyway.
+						if iter.ReadArray() {
+							dir.LinkName = iter.ReadString()
+						}
+						a.Persist = append(a.Persist, dir)
+					} else {
+						a.Persist = append(a.Persist, PersistDir{Dir: iter.ReadString()})
+					}
+				}
+			} else {
+				a.Persist = append(a.Persist, PersistDir{Dir: iter.ReadString()})
 			}
 		case DetailFieldInstaller:
 			installer := parseInstaller(iter)

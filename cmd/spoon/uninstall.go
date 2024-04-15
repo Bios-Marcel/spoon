@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/Bios-Marcel/spoon/internal/windows"
 	"github.com/Bios-Marcel/spoon/pkg/scoop"
 	wapi "github.com/iamacarpet/go-win64api"
 	"github.com/iamacarpet/go-win64api/shared"
@@ -61,10 +62,14 @@ func uninstallCmd() *cobra.Command {
 					return fmt.Errorf("error loading app details: %w", err)
 				}
 
-				// FIXME This currently only uninstalls a specific version. We
-				// need multiple versions current, specific all?
+				// FIXME This uninstalls the current version and then deletes
+				// all installed versions via file-deletion. Should this be part
+				// of the API and do we need to be more careful here?
 				if err := defaultScoop.Uninstall(app, app.Architecture); err != nil {
 					return fmt.Errorf("error uninstalling '%s': %w", arg, err)
+				}
+				if err := windows.ForceRemoveAll(filepath.Join(defaultScoop.AppDir(), app.Name)); err != nil {
+					return fmt.Errorf("error cleaning up installation of '%s': %w", arg, err)
 				}
 			}
 

@@ -42,11 +42,62 @@ func ExtractDir(dirToExtract, destinationDir string) error {
 		})
 }
 
+// ForceRemoveAll will delete any file or folder recursively. This will not
+// delete the content of junctions.
+func ForceRemoveAll(path string) error {
+	if err := os.Remove(path); err == nil || os.IsNotExist(err) {
+		return nil
+	}
+
+	if err := os.Chmod(path, 0o600); err != nil {
+		return fmt.Errorf("error marking path read-only")
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("error stating file for deletion: %w", err)
+	}
+
+	if !info.IsDir() {
+		// Try to delete again, now that it is marked read-only
+		return os.Remove(path)
+	}
+
+	// This also resolves junctions.
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return fmt.Errorf("error resolving links: %w", err)
+	}
+
+	// Workaround for junctions, as they can be deleted directly. Can we use the
+	// stat call to identify the junction?
+	if resolved != path {
+		if err := os.Remove(path); err == nil || os.IsNotExist(err) {
+			return nil
+		}
+	}
+
+	files, err := GetDirFilenames(path)
+	if err != nil {
+		return fmt.Errorf("error reading dir names: %w", err)
+	}
+
+	for _, file := range files {
+		if err := ForceRemoveAll(filepath.Join(path, file)); err != nil {
+			return err
+		}
+	}
+
+	// Remove empty dir that's leftover.
+	return os.Remove(path)
+}
+
 func GetDirFilenames(dir string) ([]string, error) {
 	dirHandle, err := os.Open(dir)
 	if err != nil {
 		return nil, err
 	}
+	defer dirHandle.Close()
 	return dirHandle.Readdirnames(-1)
 }
 
