@@ -891,8 +891,29 @@ func (scoop *Scoop) Uninstall(app *InstalledApp, arch ArchitectureKey) error {
 		return fmt.Errorf("error removing shim: %w", err)
 	}
 
-	// FIXME Do rest of the uninstall here
-	// 1. Remove shortcuts
+	// FIXME Should we instead manually delete all .lnk files and then check for
+	// leftover empty directories? This could be relevant if there are some dirs
+	// that share a shortcut subdirectory.
+	if len(resolvedApp.Shortcuts) > 0 {
+		startmenuPath, err := scoop.ShortcutDir()
+		if err != nil {
+			return err
+		}
+
+		for _, shortcut := range resolvedApp.Shortcuts {
+			dir := filepath.Dir(shortcut.ShortcutName)
+			if dir == "." {
+				if err := os.Remove(filepath.Join(startmenuPath, shortcut.ShortcutName+".lnk")); err != nil {
+					return fmt.Errorf("error deleting shortcut: %w", err)
+				}
+				continue
+			}
+
+			if err := os.RemoveAll(filepath.Join(startmenuPath, dir)); err != nil {
+				return fmt.Errorf("error deleting shortcut dir: %w", err)
+			}
+		}
+	}
 
 	if err := scoop.runScript(resolvedApp.PostUninstall); err != nil {
 		return fmt.Errorf("error executing post_uninstall script: %w", err)
@@ -1100,11 +1121,10 @@ func (scoop *Scoop) install(iter *jsoniter.Iterator, appName string, arch Archit
 	}
 
 	if len(resolvedApp.Shortcuts) > 0 {
-		startmenuPath, err := windows.GetFolderPath("StartMenu")
+		startmenuPath, err := scoop.ShortcutDir()
 		if err != nil {
-			return fmt.Errorf("error determining start menu path: %w", err)
+			return err
 		}
-		startmenuPath = filepath.Join(startmenuPath, "Programs", "Scoop Apps")
 
 		var winShortcuts []windows.Shortcut
 		for _, shortcut := range resolvedApp.Shortcuts {
@@ -1697,6 +1717,14 @@ type Scoop struct {
 
 func (scoop *Scoop) AppDir() string {
 	return filepath.Join(scoop.scoopRoot, "apps")
+}
+
+func (scoop Scoop) ShortcutDir() (string, error) {
+	startmenuPath, err := windows.GetFolderPath("StartMenu")
+	if err != nil {
+		return "", fmt.Errorf("error determining start menu path: %w", err)
+	}
+	return filepath.Join(startmenuPath, "Programs", "Scoop Apps"), nil
 }
 
 func NewScoop() (*Scoop, error) {
