@@ -28,13 +28,13 @@ func catCmd() *cobra.Command {
 				return fmt.Errorf("error getting default scoop: %w", err)
 			}
 
-			app, err := defaultScoop.GetAvailableApp(args[0])
+			app, err := defaultScoop.FindAvailableApp(args[0])
 			if err != nil {
 				return fmt.Errorf("error finding app: %w", err)
 			}
 
 			if app == nil {
-				installedApp, err := defaultScoop.GetInstalledApp(args[0])
+				installedApp, err := defaultScoop.FindInstalledApp(args[0])
 				if err != nil {
 					return fmt.Errorf("error finding app: %w", err)
 				}
@@ -44,12 +44,18 @@ func catCmd() *cobra.Command {
 				app = installedApp.App
 			}
 
-			var reader io.ReadCloser
+			var reader io.Reader
 			_, _, version := scoop.ParseAppIdentifier(args[0])
 			if version != "" {
 				reader, err = app.ManifestForVersion(version)
 			} else {
-				reader, err = os.Open(app.ManifestPath())
+				fileReader, tempErr := os.Open(app.ManifestPath())
+				if fileReader != nil {
+					defer fileReader.Close()
+					reader = fileReader
+				} else {
+					err = tempErr
+				}
 			}
 
 			if err != nil {

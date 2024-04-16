@@ -1,0 +1,4 @@
+#!/bin/sh
+# %s
+echo "bashin"
+MSYS2_ARG_CONV_EXCL=/C cmd.exe /C "%s" %s "$@"

@@ -27,7 +27,7 @@ func dependsCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("error getting default scoop: %w", err)
 			}
-			app, err := defaultScoop.GetAvailableApp(args[0])
+			app, err := defaultScoop.FindAvailableApp(args[0])
 			if err != nil {
 				return fmt.Errorf("error looking up app: %w", err)
 			}

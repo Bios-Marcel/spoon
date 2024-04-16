@@ -1,0 +1,5 @@
+# %s
+$path = "%s"
+if ($MyInvocation.ExpectingInput) { $input | & $path $arg @args } else { & $path $arg @args }
+exit $LASTEXITCODE
+

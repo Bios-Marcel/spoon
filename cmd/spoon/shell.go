@@ -176,9 +176,9 @@ func shellCmd() *cobra.Command {
 			}
 
 			if err := windows.CreateJunctions([][2]string{
-				{defaultScoop.GetCacheDir(), tempScoop.GetCacheDir()},
-				{defaultScoop.GetScoopInstallationDir(), tempScoop.GetScoopInstallationDir()},
-				{defaultScoop.GetBucketsDir(), tempScoop.GetBucketsDir()},
+				{defaultScoop.CacheDir(), tempScoop.CacheDir()},
+				{defaultScoop.ScoopInstallationDir(), tempScoop.ScoopInstallationDir()},
+				{defaultScoop.BucketDir(), tempScoop.BucketDir()},
 			}...); err != nil {
 				return fmt.Errorf("error creating junctions: %w", err)
 			}
@@ -211,7 +211,7 @@ func shellCmd() *cobra.Command {
 				// environment variables and some apps use env_add_path instead
 				// of specifying shims.
 				var app *scoop.InstalledApp
-				app, err = tempScoop.GetInstalledApp(dependency)
+				app, err = tempScoop.FindInstalledApp(dependency)
 				if err != nil {
 					break
 				}

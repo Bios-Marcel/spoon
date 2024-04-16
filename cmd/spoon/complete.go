@@ -53,7 +53,7 @@ func autocompleteInstalled(
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 
-	apps, err := defaultScoop.GetInstalledApps()
+	apps, err := defaultScoop.InstalledApps()
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}

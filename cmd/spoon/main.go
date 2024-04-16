@@ -34,6 +34,7 @@ func main() {
 	}
 
 	rootCmd.AddCommand(searchCmd())
+	rootCmd.AddCommand(downloadCmd())
 	rootCmd.AddCommand(installCmd())
 	rootCmd.AddCommand(uninstallCmd())
 	rootCmd.AddCommand(updateCmd())
