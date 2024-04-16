@@ -2,4 +2,4 @@
 !/pkg/scoop/shim.exe
 /spoon
 *.pprof
-
+.repl
