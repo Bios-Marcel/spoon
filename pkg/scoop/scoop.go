@@ -286,7 +286,7 @@ type App struct {
 	Notes       string `json:"notes"`
 
 	Bin        []Bin        `json:"bin"`
-	Shortcuts  []Bin        `json:"shortcuts"`
+	Shortcuts  []Shortcut   `json:"shortcuts"`
 	EnvAddPath []string     `json:"env_add_path"`
 	EnvSet     []EnvVar     `json:"env_set"`
 	Persist    []PersistDir `json:"persist"`
@@ -352,6 +352,13 @@ type Bin struct {
 	Args  []string
 }
 
+type Shortcut struct {
+	Name  string
+	Alias string
+	Args  string
+	Icon  string
+}
+
 type ArchitectureKey string
 
 const (
@@ -367,7 +374,7 @@ type Architecture struct {
 	Downloadables []Downloadable `json:"items"`
 
 	Bin       []Bin
-	Shortcuts []Bin
+	Shortcuts []Shortcut
 
 	// Installer replaces MSI
 	Installer   *Installer
@@ -1464,12 +1471,10 @@ func supportedBy7Zip(extension string) bool {
 type AppResolved struct {
 	*App
 
-	// TODO checkver, hash, extract_dir;
-	// TODO Merge url, hash and extract_dir? Like we did with bin, to give
-	// semantic meaning to it.
+	// TODO checkver
 
-	Bin       []Bin `json:"bin"`
-	Shortcuts []Bin `json:"shortcuts"`
+	Bin       []Bin      `json:"bin"`
+	Shortcuts []Shortcut `json:"shortcuts"`
 
 	Downloadables []Downloadable `json:"downloadables"`
 

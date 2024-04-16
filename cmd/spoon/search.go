@@ -189,11 +189,16 @@ LOOP:
 	for job := range queue {
 		if err := job.app.LoadDetailsWithIter(
 			iter,
-			scoop.DetailFieldBin,
+			// Required for printing
 			scoop.DetailFieldDescription,
-			scoop.DetailFieldVersion,
+
+			// Requied for search
+			scoop.DetailFieldBin,
 			scoop.DetailFieldShortcuts,
 			scoop.DetailFieldArchitecture,
+
+			// FIXME Why do we need this again?
+			scoop.DetailFieldVersion,
 		); err != nil {
 			fmt.Printf("Error loading details for '%s': %s\n", job.app.ManifestPath(), err)
 			os.Exit(1)
@@ -205,16 +210,19 @@ LOOP:
 			continue LOOP
 		}
 
+		// FIXME Make search shortcuts flag? Or should we just keep it in bin
+		// for now, as it is a somewhat similar meaning.
 		if searchBin {
 			if matchBin(app.Bin, search, caseInsensitive) ||
-				matchBin(app.Shortcuts, search, caseInsensitive) {
+				matchShortcut(app.Shortcuts, search, caseInsensitive) {
 				continue LOOP
 			}
 
 			if app.Architecture != nil {
+				// FIXME Don't we need to search all compatible architechtures?
 				if arch := app.Architecture[SystemArchitecture]; arch != nil {
 					if matchBin(arch.Bin, search, caseInsensitive) ||
-						matchBin(arch.Shortcuts, search, caseInsensitive) {
+						matchShortcut(arch.Shortcuts, search, caseInsensitive) {
 						continue LOOP
 					}
 				}
@@ -228,6 +236,16 @@ LOOP:
 	}
 
 	return matches
+}
+
+func matchShortcut(shortcuts []scoop.Shortcut, search string, caseInsensitive bool) bool {
+	for _, shortcut := range shortcuts {
+		if contains(filepath.Base(shortcut.Name), search, caseInsensitive) ||
+			contains(filepath.Base(shortcut.Alias), search, caseInsensitive) {
+			return true
+		}
+	}
+	return false
 }
 
 func matchBin(bins []scoop.Bin, search string, caseInsensitive bool) bool {

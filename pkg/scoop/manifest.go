@@ -142,7 +142,7 @@ func (a *App) loadDetailFromManifestWithIter(
 		case DetailFieldHash:
 			hashes = parseStringOrArray(iter)
 		case DetailFieldShortcuts:
-			a.Shortcuts = parseBin(iter)
+			a.Shortcuts = parseShortcuts(iter)
 		case DetailFieldBin:
 			a.Bin = parseBin(iter)
 		case DetailFieldArchitecture:
@@ -164,7 +164,7 @@ func (a *App) loadDetailFromManifestWithIter(
 					case "bin":
 						archValue.Bin = parseBin(iter)
 					case "shortcuts":
-						archValue.Shortcuts = parseBin(iter)
+						archValue.Shortcuts = parseShortcuts(iter)
 					case "installer":
 						installer := parseInstaller(iter)
 						archValue.Installer = &installer
@@ -279,6 +279,29 @@ func parseInstaller(iter *jsoniter.Iterator) Installer {
 		}
 	}
 	return installer
+}
+
+func parseShortcuts(iter *jsoniter.Iterator) []Shortcut {
+	var shortcuts []Shortcut
+	for iter.ReadArray() {
+		var shortcut Shortcut
+		var i int
+		for iter.ReadArray() {
+			switch i {
+			case 0:
+				shortcut.Name = iter.ReadString()
+			case 1:
+				shortcut.Alias = iter.ReadString()
+			case 2:
+				shortcut.Args = iter.ReadString()
+			case 3:
+				shortcut.Icon = iter.ReadString()
+			}
+			i++
+		}
+		shortcuts = append(shortcuts, shortcut)
+	}
+	return shortcuts
 }
 
 func parseBin(iter *jsoniter.Iterator) []Bin {

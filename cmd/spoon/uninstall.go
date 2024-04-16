@@ -91,6 +91,7 @@ func uninstallCmd() *cobra.Command {
 }
 
 func checkRunningProcesses(scoop *scoop.Scoop, args []string, yes bool) error {
+	// FIXME Replace with custom code?
 	processes, err := wapi.ProcessList()
 	if err != nil {
 		return fmt.Errorf("error determining runing processes: %w", err)
