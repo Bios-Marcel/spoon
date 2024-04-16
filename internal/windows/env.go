@@ -179,3 +179,21 @@ func SetPersistentEnvValues(vars ...[2]string) error {
 	cmd.Stdin = os.Stdin
 	return cmd.Run()
 }
+
+// GetFolderPath is equivalent to [Environment]::GetFolderPath and determines
+// user-specific folder locations.
+func GetFolderPath(folderType string) (string, error) {
+	cmd := exec.Command(
+		"powershell",
+		"-NoLogo",
+		"-NoProfile",
+		`[Environment]::GetFolderPath("`+folderType+`")`,
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", err
+	}
+
+	// Trim, since we don't want the newline.
+	return strings.TrimSpace(string(output)), nil
+}

@@ -353,10 +353,10 @@ type Bin struct {
 }
 
 type Shortcut struct {
-	Name  string
-	Alias string
-	Args  string
-	Icon  string
+	Name         string
+	ShortcutName string
+	Args         string
+	Icon         string
 }
 
 type ArchitectureKey string
@@ -635,44 +635,17 @@ func GetDefaultScoopDir() (string, error) {
 }
 
 func (scoop *Scoop) runScript(lines []string) error {
-	if len(lines) == 0 {
-		return nil
-	}
-
-	shell, err := windows.GetShellExecutable()
-	if err != nil {
-		// FIXME Does this need to be terminal?
-		return fmt.Errorf("error getting shell")
-	}
-	shell = strings.ToLower(shell)
-	switch shell {
-	case "pwsh.exe", "powershell.exe":
-	default:
-		return fmt.Errorf("shell '%s' not supported right now", shell)
-	}
-
-	cmd := exec.Command(shell, "-NoLogo")
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		return fmt.Errorf("error opening stdin pipe: %w", err)
-	}
-
 	// To slash, so we don't have to escape
 	bucketsDir := `"` + filepath.ToSlash(scoop.BucketDir()) + `"`
 
-	// FIXME So ... it seems we also need to be able to pass a reference to
-	// $manifest, which the script CAN manipulate, which we then have to
-	// reparse.
+	substitutedLines := make([]string, len(lines))
+	for index, line := range lines {
+		substitutedLines[index] = substituteVariables(line, map[string]string{
+			"$bucketsdir": bucketsDir,
+		})
+	}
 
-	go func() {
-		defer stdin.Close()
-		for _, line := range lines {
-			// FIXME Improve implementation
-			line = strings.ReplaceAll(line, "$bucketsdir", bucketsDir)
-			fmt.Fprintln(stdin, line)
-		}
-	}()
-	return cmd.Run()
+	return windows.RunPowershellScript(substitutedLines, true)
 }
 
 // InstallAll will install the given application into userspace. If an app is
@@ -1103,10 +1076,11 @@ func (scoop *Scoop) install(iter *jsoniter.Iterator, appName string, arch Archit
 		envVars = append(envVars, [2]string{pathKey, parsedPath.String()})
 	}
 
+	persistDir := filepath.Join(scoop.PersistDir(), app.Name)
 	for _, pathEntry := range resolvedApp.EnvSet {
 		value := substituteVariables(pathEntry.Value, map[string]string{
 			"dir":         currentDir,
-			"persist_dir": filepath.Join(scoop.PersistDir(), app.Name),
+			"persist_dir": persistDir,
 		})
 		envVars = append(envVars, [2]string{pathEntry.Key, value})
 	}
@@ -1125,7 +1099,35 @@ func (scoop *Scoop) install(iter *jsoniter.Iterator, appName string, arch Archit
 		return fmt.Errorf("error writing installation information: %w", err)
 	}
 
-	persistDir := filepath.Join(scoop.PersistDir(), app.Name)
+	if len(resolvedApp.Shortcuts) > 0 {
+		startmenuPath, err := windows.GetFolderPath("StartMenu")
+		if err != nil {
+			return fmt.Errorf("error determining start menu path: %w", err)
+		}
+		startmenuPath = filepath.Join(startmenuPath, "Programs", "Scoop Apps")
+
+		var winShortcuts []windows.Shortcut
+		for _, shortcut := range resolvedApp.Shortcuts {
+			var winShortcut windows.Shortcut
+			winShortcut.Dir = filepath.Join(startmenuPath, filepath.Dir(shortcut.ShortcutName))
+			winShortcut.LinkTarget = filepath.Join(currentDir, shortcut.Name)
+			winShortcut.Alias = filepath.Base(shortcut.ShortcutName)
+			if shortcut.Icon != "" {
+				winShortcut.Icon = filepath.Join(currentDir, shortcut.Icon)
+			}
+			winShortcut.Args = substituteVariables(shortcut.Args, map[string]string{
+				"dir":          currentDir,
+				"original_dir": versionDir,
+				"persist_dir":  persistDir,
+			})
+			winShortcuts = append(winShortcuts, winShortcut)
+		}
+
+		if err := windows.CreateShortcuts(winShortcuts...); err != nil {
+			return fmt.Errorf("error creating shortcuts: %w", err)
+		}
+	}
+
 	for _, entry := range resolvedApp.Persist {
 		// While I did find one manifest with $dir in it, said manifest installs
 		// in a faulty way. (See versions/lynx283). The manifest hasn't really

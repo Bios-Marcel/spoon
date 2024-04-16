@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
 )
 
@@ -108,22 +107,28 @@ func GetDirFilenames(dir string) ([]string, error) {
 // still references.
 func CreateJunctions(junctions ...[2]string) error {
 	for _, junction := range junctions {
-		from := junction[0]
-		to := junction[1]
-		// No need to re-create a junction
-		if _, err := os.Stat(to); err == nil {
-			return nil
+		from, err := filepath.Abs(junction[0])
+		if err != nil {
+			return fmt.Errorf("error creating absolute path: %w", err)
 		}
+		junction[0] = from
 
-		cmd := exec.Command("cmd", "/c", "mklink", "/J", to, from)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		cmd.Stdin = os.Stdin
-
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("error creating junction to '%s': %w", to, err)
+		to, err := filepath.Abs(junction[1])
+		if err != nil {
+			return fmt.Errorf("error creating absolute path: %w", err)
 		}
+		junction[1] = to
 	}
 
-	return nil
+	scriptLines := make([]string, 0, len(junctions))
+	for _, junction := range junctions {
+		// No need to re-create a junction
+		if _, err := os.Stat(junction[1]); err == nil {
+			continue
+		}
+
+		scriptLines = append(scriptLines, fmt.Sprintf(`mklink /J "%s" "%s"`, junction[1], junction[0]))
+	}
+
+	return RunAndPipeInto("cmd", nil, scriptLines)
 }

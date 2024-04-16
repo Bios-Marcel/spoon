@@ -291,7 +291,7 @@ func parseShortcuts(iter *jsoniter.Iterator) []Shortcut {
 			case 0:
 				shortcut.Name = iter.ReadString()
 			case 1:
-				shortcut.Alias = iter.ReadString()
+				shortcut.ShortcutName = iter.ReadString()
 			case 2:
 				shortcut.Args = iter.ReadString()
 			case 3:

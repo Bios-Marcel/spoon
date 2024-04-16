@@ -241,7 +241,7 @@ LOOP:
 func matchShortcut(shortcuts []scoop.Shortcut, search string, caseInsensitive bool) bool {
 	for _, shortcut := range shortcuts {
 		if contains(filepath.Base(shortcut.Name), search, caseInsensitive) ||
-			contains(filepath.Base(shortcut.Alias), search, caseInsensitive) {
+			contains(filepath.Base(shortcut.ShortcutName), search, caseInsensitive) {
 			return true
 		}
 	}

@@ -4,8 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"unsafe"
 )
@@ -58,7 +60,14 @@ type PROCESSENTRY32 struct {
 	ExeFile [260]uint16
 }
 
+// Since this doesn't change during runtime, we can omit future calls.
+var shellExecutable = sync.OnceValues(getShellExecutable)
+
 func GetShellExecutable() (string, error) {
+	return shellExecutable()
+}
+
+func getShellExecutable() (string, error) {
 	parentId := os.Getppid()
 	for {
 		name, id, err := getParentProcessInfo(parentId)
@@ -123,4 +132,49 @@ func getParentProcessInfo(parentProcessId int) (string, int, error) {
 	}
 
 	return "", 0, errors.New("error parent process not found")
+}
+
+type Shortcut struct {
+	// Dir is the location to create the shortcut in
+	Dir string
+	// LinkTarget is the location of the executable to be run.
+	LinkTarget string
+	// Alias is the name displayed in the explorer / startmenu.
+	Alias string
+	// Args are optional commandline arguments.
+	Args string
+	// Icon is an optional image displayed in the explorer / startmenu.
+	Icon string
+}
+
+func CreateShortcuts(shortcuts ...Shortcut) error {
+	// FIXME Proper OLE/COM implementation?
+
+	// We have at between 5 and 7 lines per shortcut, as icons and args are
+	// optional values.
+	lines := make([]string, 0, len(shortcuts)*7)
+
+	for _, shortcut := range shortcuts {
+		shortcutPath, err := filepath.Abs(filepath.Join(shortcut.Dir, shortcut.Alias))
+		if err != nil {
+			return fmt.Errorf("error determining shortcut path: %w", err)
+		}
+		lines = append(lines,
+			`$wsShell = New-Object -ComObject WScript.Shell`,
+			`$wsShell = $wsShell.CreateShortcut("`+filepath.ToSlash(shortcutPath)+`.lnk")`,
+			`$wsShell.TargetPath = "`+filepath.ToSlash(shortcut.LinkTarget)+`"`,
+			`$wsShell.WorkingDirectory = "`+filepath.ToSlash(filepath.Dir(shortcut.LinkTarget))+`"`,
+		)
+
+		if shortcut.Args != "" {
+			lines = append(lines, `$wsShell.Arguments = "`+shortcut.Args+`"`)
+		}
+		if shortcut.Icon != "" {
+			lines = append(lines, `$wsShell.IconLocation = "`+shortcut.Icon+`"`)
+		}
+
+		lines = append(lines, `$wsShell.Save()`)
+	}
+
+	return RunPowershellScript(lines, false)
 }
