@@ -1006,29 +1006,17 @@ func (scoop *Scoop) install(iter *jsoniter.Iterator, appName string, arch Archit
 		}
 
 		// The user should manually run uninstall and install to reinstall.
-		if installedApp.Version == app.Version {
+		if installedApp.Version == app.Version && installedApp.Architecture == arch {
 			return ErrAlreadyInstalled
 		}
 
-		// FIXME Get arch of installed app? Technically we could be on a 64-bit
-		// system and have the 32-bit version. The same goes for the version
-		// check. Just because the versions are the same, doesn't mean the arch
-		// necessarily needs to be the same.
-		scoop.Uninstall(installedApp, arch)
-	}
-
-	appDir := filepath.Join(scoop.AppDir(), app.Name)
-	currentDir := filepath.Join(appDir, "current")
-	if installedApp != nil {
-		if err := os.RemoveAll(currentDir); err != nil {
-			return fmt.Errorf("error removing old currentdir: %w", err)
+		// We use the installedApp Architecture, as it doesn't necessarily has
+		// to match with the desired arch.
+		if err := scoop.Uninstall(installedApp, installedApp.Architecture); err != nil {
+			return fmt.Errorf("error uninstalling exiting version: %w", err)
 		}
-
-		// FIXME Do rest of the uninstall here
-		// REmove shims bla bla bla
-
-		scoop.runScript(installedApp.PostUninstall)
 	}
+
 	// FIXME Check if an old version is already installed and we can
 	// just-relink it.
 
@@ -1036,6 +1024,7 @@ func (scoop *Scoop) install(iter *jsoniter.Iterator, appName string, arch Archit
 
 	scoop.runScript(resolvedApp.PreInstall)
 
+	appDir := filepath.Join(scoop.AppDir(), app.Name)
 	versionDir := filepath.Join(appDir, app.Version)
 	if err := os.MkdirAll(versionDir, os.ModeDir); err != nil {
 		return fmt.Errorf("error creating installation target dir: %w", err)
@@ -1083,6 +1072,7 @@ func (scoop *Scoop) install(iter *jsoniter.Iterator, appName string, arch Archit
 	}
 
 	fmt.Println("Linking to newly installed version.")
+	currentDir := filepath.Join(appDir, "current")
 	if err := windows.CreateJunctions([2]string{versionDir, currentDir}); err != nil {
 		return fmt.Errorf("error linking from new current dir: %w", err)
 	}
