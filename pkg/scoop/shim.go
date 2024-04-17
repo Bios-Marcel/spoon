@@ -2,6 +2,7 @@ package scoop
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -10,6 +11,12 @@ import (
 
 	_ "embed"
 )
+
+//go:embed shim_jar_to_cmd.template
+var jarToCmdTemplate string
+
+//go:embed shim_jar_to_bash.template
+var jarToBashTemplate string
 
 //go:embed shim_cmd_to_cmd.template
 var cmdToCmdTemplate string
@@ -140,8 +147,27 @@ func (scoop *Scoop) CreateShim(path string, bin Bin) error {
 		}
 	case ".ps1":
 	case ".jar":
+		// FIXME Do we need to escape anything here?
+		argsJoined := strings.Join(bin.Args, " ")
+
+		if err := os.WriteFile(
+			filepath.Join(scoop.ShimDir(), shimName+".cmd"),
+			[]byte(fmt.Sprintf(jarToCmdTemplate, path, path, argsJoined)),
+			0o700,
+		); err != nil {
+			return fmt.Errorf("error creating cmdShim: %w", err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(scoop.ShimDir(), shimName),
+			[]byte(fmt.Sprintf(jarToBashTemplate, path, path, argsJoined)),
+			0o700,
+		); err != nil {
+			return fmt.Errorf("error creating cmdShim: %w", err)
+		}
 	case ".py":
 	default:
+		// FIXME Do we want to implement this case?
+		return errors.New("this package contains a currently unsupported shim-type, please contact the maintainer")
 	}
 
 	return nil
