@@ -687,8 +687,8 @@ type ChecksumMismatchError struct {
 	File     string
 }
 
-func (_ *ChecksumMismatchError) Error() string {
-	return "checksum mismatch"
+func (err *ChecksumMismatchError) Error() string {
+	return fmt.Sprintf("checksum mismatch (%s != %s)", err.Expected, err.Actual)
 }
 
 // Download will download all files for the desired architecture, skipping
@@ -803,11 +803,14 @@ func validateHash(path, hashVal string) error {
 	}
 
 	var algo hash.Hash
-	if strings.HasPrefix(hashVal, "sha1") {
+	if strings.HasPrefix(hashVal, "sha1:") {
+		hashVal = hashVal[5:]
 		algo = sha1.New()
-	} else if strings.HasPrefix(hashVal, "sha512") {
+	} else if strings.HasPrefix(hashVal, "sha512:") {
+		hashVal = hashVal[7:]
 		algo = sha512.New()
-	} else if strings.HasPrefix(hashVal, "md5") {
+	} else if strings.HasPrefix(hashVal, "md5:") {
+		hashVal = hashVal[4:]
 		algo = md5.New()
 	} else {
 		// sha256 is the default in scoop and has no prefix. This
@@ -1040,7 +1043,7 @@ func (scoop *Scoop) install(iter *jsoniter.Iterator, appName string, arch Archit
 	for result := range donwloadResults {
 		switch result := result.(type) {
 		case error:
-			return err
+			return result
 		case *CacheHit:
 			fmt.Printf("Cache hit for '%s'\n", filepath.Base(result.Downloadable.URL))
 			if err := scoop.extract(app, resolvedApp, cacheDir, versionDir, *result.Downloadable, arch); err != nil {
