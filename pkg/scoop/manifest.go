@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/Bios-Marcel/spoon/internal/json"
 	jsoniter "github.com/json-iterator/go"
 )
 
@@ -123,7 +124,7 @@ func (a *App) loadDetailFromManifestWithIter(
 	manifest io.Reader,
 	fields ...string,
 ) error {
-	iter.Reset(manifest)
+	json.Reset(iter, manifest)
 
 	var urls, hashes, extractDirs, extractTos []string
 	for field := iter.ReadObject(); field != ""; field = iter.ReadObject() {

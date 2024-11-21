@@ -1,6 +1,6 @@
 module github.com/Bios-Marcel/spoon
 
-go 1.22.0
+go 1.23.0
 
 require (
 	github.com/Bios-Marcel/versioncmp v0.0.0-20240412134649-68b5439a94f0

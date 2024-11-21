@@ -9,7 +9,7 @@ import (
 	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/hex"
-	"encoding/json"
+	stdJson "encoding/json"
 	"errors"
 	"fmt"
 	"hash"
@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/Bios-Marcel/spoon/internal/git"
+	"github.com/Bios-Marcel/spoon/internal/json"
 	"github.com/Bios-Marcel/spoon/internal/windows"
 	"github.com/Bios-Marcel/versioncmp"
 	"github.com/cavaliergopher/grab/v3"
@@ -155,7 +156,7 @@ func (scoop *Scoop) findInstalledApp(iter *jsoniter.Iterator, name string) (*Ins
 	}
 	defer installJson.Close()
 
-	iter.Reset(installJson)
+	json.Reset(iter, installJson)
 
 	var (
 		bucketName   string
@@ -507,7 +508,7 @@ func (scoop *Scoop) GetOutdatedApps() ([]*OutdatedApp, error) {
 		}
 		defer file.Close()
 
-		iter.Reset(file)
+		json.Reset(iter, file)
 
 		var bucket string
 		for field := iter.ReadObject(); field != ""; field = iter.ReadObject() {
@@ -587,7 +588,7 @@ func (scoop *Scoop) InstalledApps() ([]*InstalledApp, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error reading install.json: %w", err)
 		}
-		if err := json.Unmarshal(bytes, &installJson); err != nil {
+		if err := stdJson.Unmarshal(bytes, &installJson); err != nil {
 			return nil, fmt.Errorf("error unmarshalling: %w", err)
 		}
 
@@ -1631,7 +1632,7 @@ func (a *App) AvailableVersionsN(maxVersions int) ([]string, error) {
 }
 
 func readVersion(iter *jsoniter.Iterator, data []byte) string {
-	iter.ResetBytes(data)
+	json.ResetBytes(iter, data)
 
 	for field := iter.ReadObject(); field != ""; field = iter.ReadObject() {
 		if field == "version" {

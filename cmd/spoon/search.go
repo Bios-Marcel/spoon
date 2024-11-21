@@ -187,7 +187,8 @@ func workSearchJobs(
 	matches := make([]match, 0, 50)
 LOOP:
 	for job := range queue {
-		if err := job.app.LoadDetailsWithIter(
+		app := job.app
+		if err := app.LoadDetailsWithIter(
 			iter,
 			// Required for printing
 			scoop.DetailFieldDescription,
@@ -200,11 +201,10 @@ LOOP:
 			// FIXME Why do we need this again?
 			scoop.DetailFieldVersion,
 		); err != nil {
-			fmt.Printf("Error loading details for '%s': %s\n", job.app.ManifestPath(), err)
-			os.Exit(1)
+			fmt.Printf("Error loading details for '%s': %s\n", app.ManifestPath(), err)
+			continue LOOP
 		}
 
-		app := job.app
 		if searchName && contains(app.Name, search, caseInsensitive) {
 			matches = append(matches, newMatch(app, job.bucket))
 			continue LOOP
