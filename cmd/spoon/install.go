@@ -16,7 +16,7 @@ func installCmd() *cobra.Command {
 		ValidArgsFunction: autocompleteAvailable,
 		RunE: RunE(func(cmd *cobra.Command, args []string) error {
 			// Flags we currently do not support
-			if must(cmd.Flags().GetBool("global")) {
+			if must(cmd.Flags().GetBool("global")) || !must(cmd.Flags().GetBool("experimental")) {
 				flags, err := getFlags(cmd, "global", "independent", "no-cache",
 					"no-update-scoop", "skip", "arch")
 				if err != nil {

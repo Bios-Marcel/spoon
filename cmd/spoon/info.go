@@ -23,7 +23,5 @@ func infoCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().BoolP("verbose", "v", false, "Display verbose information")
-
 	return cmd
 }

@@ -12,10 +12,10 @@ import (
 	_ "embed"
 )
 
-//go:embed shim_jar_to_cmd.template
+// //go:embed shim_jar_to_cmd.template
 var jarToCmdTemplate string
 
-//go:embed shim_jar_to_bash.template
+// //go:embed shim_jar_to_bash.template
 var jarToBashTemplate string
 
 //go:embed shim_cmd_to_cmd.template

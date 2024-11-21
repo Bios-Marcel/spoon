@@ -27,6 +27,17 @@ func uninstallCmd() *cobra.Command {
 		Args:              cobra.MinimumNArgs(1),
 		ValidArgsFunction: autocompleteInstalled,
 		RunE: RunE(func(cmd *cobra.Command, args []string) error {
+			// redirectedFlags, err := getFlags(cmd, "global", "purge")
+			// Flags we currently do not support
+			if must(cmd.Flags().GetBool("global")) || !must(cmd.Flags().GetBool("experimental")) {
+				redirectedFlags, err := getFlags(cmd, "global", "purge")
+				if err != nil {
+					fmt.Println(err)
+					os.Exit(1)
+				}
+				os.Exit(execScoopCommand("uninstall", append(redirectedFlags, args...)...))
+			}
+
 			yes, err := cmd.Flags().GetBool("yes")
 			if err != nil {
 				return fmt.Errorf("error getting yes flag: %w", err)
@@ -73,12 +84,6 @@ func uninstallCmd() *cobra.Command {
 				}
 			}
 
-			// redirectedFlags, err := getFlags(cmd, "global", "purge")
-			// if err != nil {
-			// 	fmt.Println(err)
-			// 	os.Exit(1)
-			// }
-			// os.Exit(execScoopCommand("uninstall", append(redirectedFlags, args...)...))
 			return nil
 		}),
 	}
