@@ -262,11 +262,11 @@ func shellCmd() *cobra.Command {
 			for _, envEntry := range tempEnv {
 				envPowershellSetup.WriteString(`$env:`)
 				envPowershellSetup.WriteString(envEntry.Key)
-				envPowershellSetup.WriteString(`="`)
+				envPowershellSetup.WriteString(`=''`)
 				envPowershellSetup.WriteString(envEntry.Value)
-				envPowershellSetup.WriteString(`";`)
+				envPowershellSetup.WriteString(`'';`)
 			}
-			envPowershellSetup.WriteString(`$env:PATH="` + newTempPath + `;$PATH"'`)
+			envPowershellSetup.WriteString(`$env:PATH=''` + newTempPath + `;$PATH'''`)
 
 			// Workaround, as starting a subshell on windows doesn't seem to be
 			// so easy after all.
