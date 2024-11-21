@@ -31,7 +31,7 @@ func Test_ManifestForVersion(t *testing.T) {
 	t.Run("found", func(t *testing.T) {
 		t.Parallel()
 
-		manifest, err := app.ManifestForVersion("1.22.0")
+		manifest, err := app.ManifestForVersion("1.22.1")
 		require.NoError(t, err)
 
 		// FIXME Read and validate.
