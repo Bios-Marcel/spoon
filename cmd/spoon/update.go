@@ -1,18 +1,26 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"sync"
 
+	"github.com/Bios-Marcel/spoon/internal/git"
 	"github.com/Bios-Marcel/spoon/pkg/scoop"
-	git "github.com/go-git/go-git/v5"
+	gogit "github.com/go-git/go-git/v5"
 	"github.com/spf13/cobra"
 )
 
-func fastUpdate(repo string) error {
-	gitRepo, err := git.PlainOpen(repo)
+func fastUpdate(ctx context.Context, repo string) error {
+	// Scoop can break repositories when aborting during upgrades. However, we can't use gogit
+	// for this, as it will break the repo.
+	if err := git.ResetHard(ctx, repo); err != nil {
+		return fmt.Errorf("error resetting repo")
+	}
+
+	gitRepo, err := gogit.PlainOpen(repo)
 	if err != nil {
 		return fmt.Errorf("error opening bucket: %w", err)
 	}
@@ -22,8 +30,8 @@ func fastUpdate(repo string) error {
 		return fmt.Errorf("error reading worktree: %w", err)
 	}
 
-	if err := workTree.Pull(&git.PullOptions{}); err != nil {
-		if errors.Is(err, git.NoErrAlreadyUpToDate) {
+	if err := workTree.Pull(&gogit.PullOptions{}); err != nil {
+		if errors.Is(err, gogit.NoErrAlreadyUpToDate) {
 			return nil
 		}
 		return fmt.Errorf("error pulling updates: %w", err)
@@ -68,13 +76,14 @@ func updateCmd() *cobra.Command {
 				return fmt.Errorf("error getting local buckets: %w", err)
 			}
 
+			ctx := context.Background()
 			var waitgroup sync.WaitGroup
 			waitgroup.Add(len(buckets))
 			for _, bucket := range buckets {
 				bucket := bucket
 				go func() {
 					defer waitgroup.Done()
-					err := fastUpdate(bucket.Dir())
+					err := fastUpdate(ctx, bucket.Dir())
 					if err != nil {
 						fmt.Printf("Error updating bucket '%s': %s\n", bucket.Name(), err)
 					}

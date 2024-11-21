@@ -57,6 +57,12 @@ func backgroundCommand(
 	return out, nil
 }
 
+func ResetHard(ctx context.Context, path string) error {
+	cmd := exec.CommandContext(ctx, "git", "reset", "--hard")
+	cmd.Dir = path
+	return cmd.Run()
+}
+
 // GitPaths returns the repository root and the relative filepath of the given
 // file. The paths use forward slashes, as this helps working with git.
 func GitPaths(path string) (string, string) {
