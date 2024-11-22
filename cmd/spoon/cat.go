@@ -11,7 +11,7 @@ import (
 )
 
 func catCmd() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "cat {app}",
 		Short: "Print JSON manifest of an available app",
 		Long:  "Print JSON manifest of an available app. Optionally this command accepts a URL to a manifest file.",
@@ -28,9 +28,12 @@ func catCmd() *cobra.Command {
 				return fmt.Errorf("error getting default scoop: %w", err)
 			}
 
-			app, err := defaultScoop.FindAvailableApp(args[0])
-			if err != nil {
-				return fmt.Errorf("error finding app: %w", err)
+			var app *scoop.App
+			if !must(cmd.Flags().GetBool("installed")) {
+				app, err = defaultScoop.FindAvailableApp(args[0])
+				if err != nil {
+					return fmt.Errorf("error finding app: %w", err)
+				}
 			}
 
 			if app == nil {
@@ -73,4 +76,8 @@ func catCmd() *cobra.Command {
 			return nil
 		}),
 	}
+
+	cmd.Flags().BoolP("installed", "i", false, "Show manifest of installed app")
+
+	return cmd
 }
