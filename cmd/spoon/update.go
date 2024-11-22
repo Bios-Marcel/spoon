@@ -52,19 +52,10 @@ func updateCmd() *cobra.Command {
 		Args:              cobra.ArbitraryArgs,
 		ValidArgsFunction: autocompleteInstalled,
 		RunE: RunE(func(cmd *cobra.Command, args []string) error {
-			// If we have no args, it means update the buckets, instead of apps.
-			// We do this natively, as it's much faster and a rather easy task.
-			// However, we haven't implemented install yet, therefore we can't
-			// handle the actual updating of apps.
-			if len(args) > 0 || must(cmd.Flags().GetBool("all")) || !must(cmd.Flags().GetBool("experimental")) {
-				flags, err := getFlags(cmd, "force", "global", "indepdendent", "no-cache", "skip", "quiet", "all")
-				if err != nil {
-					return fmt.Errorf("error reading flags: %w", err)
-				}
-
-				os.Exit(execScoopCommand("update", append(flags, args...)...))
-				return nil
-			}
+			// Whenever we update, whether it is a certain app or the buckets,we
+			// always want to make sure everything is in good health and
+			// up-to-date. This is helpful, as scoop can break buckets
+			// when hitting ctrl-c during an update.
 
 			defaultScoop, err := scoop.NewScoop()
 			if err != nil {
@@ -91,6 +82,23 @@ func updateCmd() *cobra.Command {
 			}
 
 			waitgroup.Wait()
+
+			// We haven't implemented install yet, therefore we can't
+			// handle the actual updating of apps.
+			if len(args) > 0 || must(cmd.Flags().GetBool("all")) {
+				flags, err := getFlags(cmd, "force", "global", "indepdendent", "no-cache", "skip", "quiet", "all")
+				if err != nil {
+					return fmt.Errorf("error reading flags: %w", err)
+				}
+
+				if code := execScoopCommand("update", append(flags, args...)...); code != 0 {
+					os.Exit(code)
+				}
+
+				// No need to print status, as everything that can be
+				// updated, should be updated at this point in time
+				return nil
+			}
 
 			// Since you usually want to know whether anything has changed, we
 			// can just run this right away.
