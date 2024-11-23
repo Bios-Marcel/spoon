@@ -42,6 +42,8 @@ func main() {
 	rootCmd.AddCommand(uninstallCmd())
 	rootCmd.AddCommand(updateCmd())
 	rootCmd.AddCommand(resetCmd())
+	rootCmd.AddCommand(holdCmd())
+	rootCmd.AddCommand(unholdCmd())
 	rootCmd.AddCommand(bucketCmd())
 	rootCmd.AddCommand(catCmd())
 	rootCmd.AddCommand(versionsCmd())
