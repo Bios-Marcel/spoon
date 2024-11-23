@@ -92,12 +92,13 @@ There are basically three levels of implementations (and the states inbetween):
 | install    | Native (WIP)        | * Installing a specific version doesn't generate manifests anymore, but uses an old existing manifest and sets the installed app to `held`. |
 | uninstall  | Native (WIP)        | * Terminate running processes                                            |
 | info       | Wrapper             |                                                                          |
+| unhold     | Wrapper             |                                                                          |
+| hold       | Wrapper             |                                                                          |
+| list       | Wrapper             |                                                                          |
+| reset      | Wrapper             |                                                                          |
+| alias      | Planned Next        |                                                                          |
+| cleanup    | Planned Next        |                                                                          |
 | shim       | Planned Next        |                                                                          |
-| unhold     | Planned Next        |                                                                          |
-| hold       | Planned Next        |                                                                          |
-| list       |                     |                                                                          |
-| reset      |                     |                                                                          |
-| cleanup    |                     |                                                                          |
 | create     |                     |                                                                          |
 | which      |                     |                                                                          |
 | config     |                     |                                                                          |
@@ -108,5 +109,4 @@ There are basically three levels of implementations (and the states inbetween):
 | import     |                     |                                                                          |
 | checkup    |                     |                                                                          |
 | virustotal |                     |                                                                          |
-| alias      |                     |                                                                          |
 
