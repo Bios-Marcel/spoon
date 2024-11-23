@@ -36,6 +36,7 @@ func main() {
 	rootCmd.PersistentFlags().BoolP("experimental", "e", false, "enables experimental (potentially) buggy versions of some features")
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "Display verbose information")
 
+	rootCmd.AddCommand(listCmd())
 	rootCmd.AddCommand(searchCmd())
 	rootCmd.AddCommand(downloadCmd())
 	rootCmd.AddCommand(installCmd())
