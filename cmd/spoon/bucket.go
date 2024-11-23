@@ -14,7 +14,9 @@ import (
 
 func bucketCmd() *cobra.Command {
 	bucketRoot := &cobra.Command{
-		Use: "bucket",
+		Use:   "bucket",
+		Short: "Allows managing installed buckets",
+		Long:  "Allows adding and removing buckets to the scoop install. Adding a bucket makes the contained apps available for installation.",
 	}
 
 	bucketRoot.AddCommand(
