@@ -9,8 +9,6 @@ import (
 
 	"github.com/Bios-Marcel/spoon/internal/windows"
 	"github.com/Bios-Marcel/spoon/pkg/scoop"
-	wapi "github.com/iamacarpet/go-win64api"
-	"github.com/iamacarpet/go-win64api/shared"
 	"github.com/rodaine/table"
 	"github.com/spf13/cobra"
 )
@@ -97,7 +95,7 @@ func uninstallCmd() *cobra.Command {
 
 func checkRunningProcesses(scoop *scoop.Scoop, args []string, yes bool) error {
 	// FIXME Replace with custom code?
-	processes, err := wapi.ProcessList()
+	processes, err := windows.ProcessList()
 	if err != nil {
 		return fmt.Errorf("error determining runing processes: %w", err)
 	}
@@ -108,7 +106,7 @@ func checkRunningProcesses(scoop *scoop.Scoop, args []string, yes bool) error {
 			strings.ToLower(filepath.Join(scoop.AppDir(), arg)+"\\"))
 	}
 
-	var processesToKill []shared.Process
+	var processesToKill []windows.Process
 PROCESS_LOOP:
 	for i := 0; i < len(processes); i++ {
 		process := processes[i]
@@ -146,7 +144,7 @@ PROCESS_LOOP:
 
 		if kill {
 			for _, process := range processesToKill {
-				bool, err := wapi.ProcessKill(uint32(process.Pid))
+				bool, err := windows.ProcessKill(uint32(process.Pid))
 				if err != nil {
 					return fmt.Errorf("error killing process: %w", err)
 				}

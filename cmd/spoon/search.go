@@ -88,7 +88,7 @@ func searchCmd() *cobra.Command {
 			// To prevent locking unnecessarily often, we let each routine
 			// search, collect results and admit them all at once. This time we
 			// only lock and unlock 4 times, instead of searchJob times.
-			matchMutex := &sync.Mutex{}
+			matchMutex := sync.Mutex{}
 
 			for i := 0; i < searchWorkers; i++ {
 				go func() {

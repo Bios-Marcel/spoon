@@ -214,7 +214,7 @@ func (b *Bucket) AvailableApps() ([]*App, error) {
 			Bucket: b,
 			// Cut off .json
 			Name:         name[:len(name)-5],
-			manifestPath: manifestDir + "\\" + name,
+			manifestPath: manifestDir + "/" + name,
 		})
 	}
 

@@ -1,3 +1,5 @@
+//go:build windows
+
 package windows
 
 import (
@@ -10,6 +12,8 @@ import (
 	"sync"
 	"syscall"
 	"unsafe"
+
+	wapi "github.com/iamacarpet/go-win64api"
 )
 
 // Arch retrieves the runtime architecture. This might differ from the compile
@@ -177,4 +181,30 @@ func CreateShortcuts(shortcuts ...Shortcut) error {
 	}
 
 	return RunPowershellScript(lines, false)
+}
+
+type Process struct {
+	Pid        uint32
+	Fullpath   string
+	Executable string
+}
+
+func ProcessList() ([]Process, error) {
+	sharedProcesses, err := wapi.ProcessList()
+	if err != nil {
+		return nil, nil
+	}
+
+	processes := make([]Process, len(sharedProcesses))
+	for index, process := range sharedProcesses {
+		processes[index] = Process{
+			Fullpath: process.Fullpath,
+			Pid:      uint32(process.Pid),
+		}
+	}
+	return processes, nil
+}
+
+func ProcessKill(pid uint32) (bool, error) {
+	return wapi.ProcessKill(pid)
 }
