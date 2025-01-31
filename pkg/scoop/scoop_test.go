@@ -76,22 +76,22 @@ func Test_ParseBin(t *testing.T) {
 	t.Run("nested array (multiple shims)", func(t *testing.T) {
 		t.Parallel()
 
-		app := app(t, "extras/stash")
+		app := app(t, "main/unbound")
 
 		err := app.LoadDetails(scoop.DetailFieldBin)
 		require.NoError(t, err)
 
 		// Order doesnt matter
-		require.Len(t, app.Bin, 2)
+		require.Len(t, app.Bin, 6)
 		require.Contains(t, app.Bin, scoop.Bin{
-			Name:  "stash-win.exe",
-			Alias: "stash-win",
-			Args:  []string{`-c "$dir\config\config.yml"`},
+			Name:  "unbound.exe",
+			Alias: "unbound",
+			Args:  []string{"-c \"$dir\\service.conf\""},
 		})
 		require.Contains(t, app.Bin, scoop.Bin{
-			Name:  "stash-win.exe",
-			Alias: "stash",
-			Args:  []string{`-c "$dir\config\config.yml"`},
+			Name:  "unbound-anchor.exe",
+			Alias: "unbound-anchor",
+			Args:  []string{"-a \"$dir\\root.key\""},
 		})
 	})
 	t.Run("nested array that contains arrays and strings", func(t *testing.T) {
