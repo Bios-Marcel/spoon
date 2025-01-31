@@ -215,6 +215,7 @@ LOOP:
 		if searchBin {
 			if matchBin(app.Bin, search, caseInsensitive) ||
 				matchShortcut(app.Shortcuts, search, caseInsensitive) {
+				matches = append(matches, newMatch(app, job.bucket))
 				continue LOOP
 			}
 
@@ -223,6 +224,7 @@ LOOP:
 				if arch := app.Architecture[SystemArchitecture]; arch != nil {
 					if matchBin(arch.Bin, search, caseInsensitive) ||
 						matchShortcut(arch.Shortcuts, search, caseInsensitive) {
+						matches = append(matches, newMatch(app, job.bucket))
 						continue LOOP
 					}
 				}
