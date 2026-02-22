@@ -133,14 +133,14 @@ func (scoop *Scoop) CreateShim(path string, bin Bin) error {
 
 		if err := os.WriteFile(
 			filepath.Join(scoop.ShimDir(), shimName+".cmd"),
-			[]byte(fmt.Sprintf(cmdToCmdTemplate, path, path, argsJoined)),
+			fmt.Appendf(nil, cmdToCmdTemplate, path, path, argsJoined),
 			0o700,
 		); err != nil {
 			return fmt.Errorf("error creating cmdShim: %w", err)
 		}
 		if err := os.WriteFile(
 			filepath.Join(scoop.ShimDir(), shimName),
-			[]byte(fmt.Sprintf(cmdToBashTemplate, path, path, argsJoined)),
+			fmt.Appendf(nil, cmdToBashTemplate, path, path, argsJoined),
 			0o700,
 		); err != nil {
 			return fmt.Errorf("error creating cmdShim: %w", err)
@@ -152,14 +152,14 @@ func (scoop *Scoop) CreateShim(path string, bin Bin) error {
 
 		if err := os.WriteFile(
 			filepath.Join(scoop.ShimDir(), shimName+".cmd"),
-			[]byte(fmt.Sprintf(jarToCmdTemplate, path, path, argsJoined)),
+			fmt.Appendf(nil, jarToCmdTemplate, path, path, argsJoined),
 			0o700,
 		); err != nil {
 			return fmt.Errorf("error creating cmdShim: %w", err)
 		}
 		if err := os.WriteFile(
 			filepath.Join(scoop.ShimDir(), shimName),
-			[]byte(fmt.Sprintf(jarToBashTemplate, path, path, argsJoined)),
+			fmt.Appendf(nil, jarToBashTemplate, path, path, argsJoined),
 			0o700,
 		); err != nil {
 			return fmt.Errorf("error creating cmdShim: %w", err)

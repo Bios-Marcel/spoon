@@ -1115,12 +1115,12 @@ func (scoop *Scoop) install(iter *jsoniter.Iterator, appName string, arch Archit
 	}
 
 	// FIXME Adjust arch value if we install anything else than is desired.
-	if err := os.WriteFile(filepath.Join(versionDir, "install.json"), []byte(fmt.Sprintf(
+	if err := os.WriteFile(filepath.Join(versionDir, "install.json"), fmt.Appendf(nil,
 		`{
     "bucket": "%s",
     "architecture": "%s",
     "hold": %v
-}`, app.Bucket.Name(), arch, version != "")), 0o600); err != nil {
+}`, app.Bucket.Name(), arch, version != ""), 0o600); err != nil {
 		return fmt.Errorf("error writing installation information: %w", err)
 	}
 

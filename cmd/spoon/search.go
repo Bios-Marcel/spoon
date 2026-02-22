@@ -90,7 +90,7 @@ func searchCmd() *cobra.Command {
 			// only lock and unlock 4 times, instead of searchJob times.
 			matchMutex := sync.Mutex{}
 
-			for i := 0; i < searchWorkers; i++ {
+			for range searchWorkers {
 				go func() {
 					localMatches := workSearchJobs(
 						searchJobQueue,

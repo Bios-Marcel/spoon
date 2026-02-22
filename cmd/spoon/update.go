@@ -71,7 +71,6 @@ func updateCmd() *cobra.Command {
 			var waitgroup sync.WaitGroup
 			waitgroup.Add(len(buckets))
 			for _, bucket := range buckets {
-				bucket := bucket
 				go func() {
 					defer waitgroup.Done()
 					err := fastUpdate(ctx, bucket.Dir())

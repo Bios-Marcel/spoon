@@ -73,7 +73,7 @@ func (p Paths) Prepend(paths ...string) Paths {
 // Creates a new path string, where all entries are quoted.
 func (p Paths) String() string {
 	var buffer bytes.Buffer
-	for i := 0; i < len(p); i++ {
+	for i := range p {
 		if i != 0 {
 			buffer.WriteRune(';')
 		}
