@@ -14,7 +14,7 @@ jobs:
       - name: Install Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.22.x
+          go-version-file: go.mod
 
       - name: setup scoop
         uses: MinoruSekine/setup-scoop@v3
