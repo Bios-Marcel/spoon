@@ -97,7 +97,7 @@ There are basically three levels of implementations (and the states inbetween):
 | list       | Wrapper             |                                                                          |
 | reset      | Wrapper             |                                                                          |
 | alias      | Planned Next        |                                                                          |
-| cleanup    | Planned Next        |                                                                          |
+| cleanup    | Partially Native    | * Continues cleaning remaining versions and apps after deletion failures<br/>* Global cleanup delegates to Scoop |
 | shim       | Planned Next        |                                                                          |
 | create     |                     |                                                                          |
 | which      |                     |                                                                          |

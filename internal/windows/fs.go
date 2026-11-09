@@ -1,6 +1,7 @@
 package windows
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -89,6 +90,70 @@ func ForceRemoveAll(path string) error {
 
 	// Remove empty dir that's leftover.
 	return os.Remove(path)
+}
+
+// ForceRemoveAllBestEffort deletes path recursively without stopping after the
+// first failure. Junctions and symbolic links are removed without traversing
+// them. The returned error contains every path that could not be removed.
+func ForceRemoveAllBestEffort(path string) error {
+	var errs []error
+	forceRemoveAllBestEffort(path, &errs)
+	return errors.Join(errs...)
+}
+
+func forceRemoveAllBestEffort(path string, errs *[]error) {
+	// This handles files, empty directories and links in the common case.
+	if err := os.Remove(path); err == nil || os.IsNotExist(err) {
+		return
+	}
+
+	info, err := os.Lstat(path)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			*errs = append(*errs, fmt.Errorf("error stating %q for deletion: %w", path, err))
+		}
+		return
+	}
+
+	link, err := IsLink(path)
+	if err != nil {
+		*errs = append(*errs, fmt.Errorf("error checking whether %q is a link: %w", path, err))
+		return
+	}
+
+	mode := fs.FileMode(0o600)
+	if info.IsDir() && !link {
+		mode = 0o700
+	}
+	// On Windows this also clears the read-only attribute that Scoop sets on
+	// junctions. A chmod failure is only relevant if deletion still fails.
+	chmodErr := os.Chmod(path, mode)
+
+	if link || !info.IsDir() {
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			if chmodErr != nil {
+				*errs = append(*errs, fmt.Errorf("error making %q writable: %w", path, chmodErr))
+			}
+			*errs = append(*errs, fmt.Errorf("error removing %q: %w", path, err))
+		}
+		return
+	}
+
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		*errs = append(*errs, fmt.Errorf("error reading %q for deletion: %w", path, err))
+	} else {
+		for _, entry := range entries {
+			forceRemoveAllBestEffort(filepath.Join(path, entry.Name()), errs)
+		}
+	}
+
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		if chmodErr != nil {
+			*errs = append(*errs, fmt.Errorf("error making %q writable: %w", path, chmodErr))
+		}
+		*errs = append(*errs, fmt.Errorf("error removing %q: %w", path, err))
+	}
 }
 
 func GetDirFilenames(dir string) ([]string, error) {

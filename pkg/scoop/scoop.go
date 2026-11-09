@@ -635,6 +635,22 @@ func GetDefaultScoopDir() (string, error) {
 	return filepath.Join(home, "scoop"), nil
 }
 
+func GetDefaultGlobalScoopDir() (string, error) {
+	if globalDir := os.Getenv("SCOOP_GLOBAL"); globalDir != "" {
+		return globalDir, nil
+	}
+
+	programData := os.Getenv("ProgramData")
+	if programData == "" {
+		var err error
+		programData, err = windows.GetFolderPath("CommonApplicationData")
+		if err != nil {
+			return "", fmt.Errorf("error getting common application data directory: %w", err)
+		}
+	}
+	return filepath.Join(programData, "scoop"), nil
+}
+
 func (scoop *Scoop) runScript(lines []string) error {
 	// To slash, so we don't have to escape
 	bucketsDir := `"` + filepath.ToSlash(scoop.BucketDir()) + `"`
@@ -1737,6 +1753,14 @@ func NewScoop() (*Scoop, error) {
 		return nil, fmt.Errorf("error getting default scoop dir: %w", err)
 	}
 	return NewCustomScoop(dir), nil
+}
+
+func NewGlobalScoop() (*Scoop, error) {
+	globalRoot, err := GetDefaultGlobalScoopDir()
+	if err != nil {
+		return nil, fmt.Errorf("error getting global scoop directory: %w", err)
+	}
+	return NewCustomScoop(globalRoot), nil
 }
 
 func NewCustomScoop(scoopRoot string) *Scoop {

@@ -52,6 +52,7 @@ func main() {
 	rootCmd.AddCommand(statusCmd())
 	rootCmd.AddCommand(infoCmd())
 	rootCmd.AddCommand(dependsCmd())
+	rootCmd.AddCommand(cleanupCmd())
 
 	if err := rootCmd.Execute(); err != nil {
 		if strings.HasPrefix(err.Error(), "unknown command") {
